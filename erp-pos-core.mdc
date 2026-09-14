@@ -1,0 +1,95 @@
+---
+description: Retail ERP & POS core engineering rules (auth, money, inventory, shop isolation)
+alwaysApply: true
+---
+
+# Retail ERP & POS — Project Rules
+
+Full spec lives in `docs/AGENT_GUIDELINE.md`, `apps/api/prisma/schema.prisma`, and
+`docs/architecture/erd-*.png`. This file is the always-on summary that must be
+followed on every turn, in every module.
+
+## Stack (do not substitute)
+
+Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui + TanStack Query +
+React Hook Form + Zod on the frontend. NestJS + TypeScript + Prisma + PostgreSQL +
+Redis on the backend. Modular monolith — never propose microservices.
+
+## Non-negotiable rules
+
+- No client-trusted money or stock. Every sale total, tax, discount, and stock
+  quantity is recalculated server-side inside the checkout transaction, ignoring
+  whatever the client sent.
+- Inventory writes go through one path only. Never update `inventory_balances`
+  directly. Only the inventory service updates a balance, and it always inserts a
+  matching `stock_movements` row in the same database transaction.
+- Multi-step financial or inventory operations run inside one transaction.
+  Checkout, return approval, refund, exchange, and transfer state changes each run
+  inside a single Prisma transaction, never split across separate round-trips.
+- Shop isolation is mandatory on every shop-scoped query. Filter by the caller's
+  assigned shop or shops via `user_shops`. Never trust a shopId from the request
+  body or params without checking it against the authenticated user's assignments
+  first. For every new shop-scoped endpoint, write a test proving user A cannot
+  reach shop B's data by changing an id before calling the endpoint done.
+- Auth guard order is fixed: authentication, then session validity, then role,
+  then permission, then shop access, using the shared guards in common/guards.
+  Never hand-roll auth checks per controller.
+- Money and quantities are always Decimal, never number or float, in Prisma
+  models, DTOs, and frontend state alike.
+- Sales, returns, refunds, exchanges, and stock movements are append-only. Never
+  physically delete them. Products, categories, and suppliers referenced by
+  historical transactions are soft-deleted using archivedAt, never hard-deleted.
+- Never persist secrets in plaintext. Passwords are hashed with Argon2id. TOTP
+  secrets, backup codes, and refresh tokens are always hashed before storage and
+  never logged.
+- Controllers stay thin. Business logic lives in services or command handlers.
+  Checkout, return approval, and exchange completion are each their own
+  dedicated application service.
+- Reuse shared UI primitives such as the data table, form field, and dialog
+  components instead of building a one-off table, dialog, or form per feature.
+- Currency is a single system-wide setting (BDT or GBP), never per-shop or
+  per-transaction. Switching it converts current Product prices only, inside
+  one transaction, using the current exchange_rates row. Sale, Purchase,
+  Refund, and ExchangePayment each snapshot their own currency at creation
+  and never change afterward, even if the system currency later switches.
+- Refund and exchange endpoints must check the linked Return's status is
+  APPROVED before processing — a Refund or Exchange row existing is not
+  itself proof of approval. Use the REFUND_NOT_ALLOWED / EXCHANGE_NOT_ALLOWED
+  error codes for this.
+- Every mutating Super Admin action writes an audit_logs row including the
+  actor's role and device info at that time, not just financial actions.
+- CORS is scoped to the real frontend origin, never "*". Security headers
+  (helmet or equivalent) and DTO input whitelisting are on by default, not
+  added later. File uploads validate MIME type and size server-side and are
+  stored under a generated filename, never the client-supplied one.
+
+## Resolved ambiguities — do not re-litigate
+
+- New-device login: email a verification link to the account's verified email,
+  with TOTP or backup-code fallback. No live push-to-trusted-device.
+- Negative inventory: controlled per-shop via shop_settings.allowNegativeStock,
+  default false. Checkout always re-validates real stock regardless of the flag.
+- Return item condition, sellable or damaged, is set by the approving admin on
+  the return decision and drives which stock movement type restores inventory.
+- Exchange payment direction is its own exchange_payments record, either
+  customer pays or refund to customer, never bolted onto the original sale.
+- Backup means a scheduled pg_dump plus a backup_records log row. No one-click
+  restore UI until it has been manually tested; gate it behind a runbook.
+- Currency switch: reject with CURRENCY_RATE_NOT_SET if no rate exists for the
+  target currency rather than guessing one. Require a type-to-confirm UI step
+  and trigger an automatic backup before running the switch. Never touch
+  sales, purchases, refunds, or payments during a switch. Reports must group
+  and subtotal by currency rather than silently summing mismatched
+  currencies together.
+
+## Definition of done
+
+A feature is not done until it passes the relevant rows of the testing
+checklist in AGENT_GUIDELINE.md section 10: shop isolation, insufficient-stock
+rejection, concurrent-sale race on the same variant, and rollback on failure,
+at minimum.
+
+## On ambiguity
+
+Do not silently invent a business rule. Add a comment explaining the ambiguity
+and ask before proceeding.

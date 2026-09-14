@@ -1,0 +1,225 @@
+'use client';
+
+import { KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/api';
+import { useCart } from '@/stores/cart';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useCurrencyPreferences } from '@/app/providers';
+
+type Method = { id: string; name: string };
+type Shop = { id: string; name: string };
+type Customer = { id: string; name: string; phone?: string };
+type Product = { name: string; sellingPrice: string; variants: { id: string; sku: string; variantName: string; priceOverride?: string | null; barcodes: { value: string }[] }[] };
+
+export function PosScreen() {
+  const searchRef = useRef<HTMLInputElement>(null);
+  const { formatCurrency } = useCurrencyPreferences();
+  const [q, setQ] = useState('');
+  const [methods, setMethods] = useState<Method[]>([]);
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [methodId, setMethodId] = useState('');
+  const [tendered, setTendered] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState('');
+  const [lastReceipt, setLastReceipt] = useState('');
+  const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
+  const cart = useCart();
+
+  useEffect(() => {
+    searchRef.current?.focus();
+    api<Shop[]>('/shops').then((r) => {
+      setShops(r.data);
+      if (r.data[0] && !cart.shopId) cart.setShopId(r.data[0].id);
+    });
+    api<Method[]>('/payments/methods').then((r) => {
+      setMethods(r.data);
+      if (r.data[0]) setMethodId(r.data[0].id);
+    });
+    api<Customer[]>('/customers').then((r) => setCustomers(r.data ?? [])).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (q.trim().length < 2) { setProducts([]); return; }
+      api<Product[]>(`/products?search=${encodeURIComponent(q.trim())}`).then((r) => setProducts(r.data ?? [])).catch(() => setProducts([]));
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key === '/' && document.activeElement !== searchRef.current) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (e.key === 'F2') {
+        e.preventDefault();
+        void checkout();
+      }
+      if (e.key === 'Delete' && cart.lines.length) {
+        e.preventDefault();
+        cart.remove(cart.lines[cart.lines.length - 1].productVariantId);
+      }
+      if (e.key === 'Escape') setConfirmClear(true);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  async function scan(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return;
+    const value = q.trim();
+    if (!value) return;
+    try {
+      const res = await api<{
+        id: string;
+        sku: string;
+        variantName: string;
+        priceOverride: string | null;
+        product: { name: string; sellingPrice: string };
+      }>(`/products/barcode/${encodeURIComponent(value)}`);
+      const v = res.data;
+      cart.add({
+        productVariantId: v.id,
+        name: `${v.product.name} ${v.variantName}`,
+        sku: v.sku,
+        quantity: '1.000',
+        unitPrice: v.priceOverride ?? v.product.sellingPrice,
+        barcode: value,
+      });
+      setQ('');
+      searchRef.current?.focus();
+    } catch (err) {
+      setMessage((err as Error).message);
+    }
+  }
+
+  async function checkout() {
+    if (!cart.shopId || !cart.lines.length || !methodId) return;
+    try {
+      const res = await api<{ receiptNumber: string; receiptPdfBase64?: string }>('/sales/checkout', {
+        method: 'POST',
+        body: JSON.stringify({
+          shopId: cart.shopId,
+          customerId: customerId || undefined,
+          receiptFormat,
+          items: cart.lines.map((l) => ({ productVariantId: l.productVariantId, quantity: l.quantity })),
+          payments: [
+            {
+              methodId,
+              amount: '0.00',
+              ...(tendered ? { amountTendered: tendered } : {}),
+            },
+          ],
+        }),
+      });
+      setMessage(`Sale ${res.data.receiptNumber} completed`);
+      setLastReceipt(res.data.receiptPdfBase64 ?? '');
+      if (res.data.receiptPdfBase64) {
+        const blob = new Blob([Uint8Array.from(atob(res.data.receiptPdfBase64), (c) => c.charCodeAt(0))], {
+          type: 'application/pdf',
+        });
+        window.open(URL.createObjectURL(blob));
+      }
+      cart.clear();
+      setTendered('');
+      setCustomerId('');
+      searchRef.current?.focus();
+    } catch (err) {
+      setMessage((err as Error).message);
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-[1fr_360px] gap-4">
+      <div>
+        <div className="mb-3 flex gap-2">
+          <select
+            className="rounded border px-2 py-2"
+            value={cart.shopId ?? ''}
+            onChange={(e) => cart.setShopId(e.target.value)}
+          >
+            {shops.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <input
+            ref={searchRef}
+            className="flex-1 rounded border px-3 py-2 text-lg"
+            placeholder="Scan barcode or search — Enter to add"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={scan}
+          />
+        </div>
+        {products.length ? <div className="mb-3 grid gap-2 rounded-xl bg-white p-3 shadow-sm sm:grid-cols-2">{products.flatMap((product) => product.variants.map((variant) => <button key={variant.id} className="rounded-lg border p-3 text-left hover:border-accent" onClick={() => { cart.add({ productVariantId: variant.id, name: `${product.name} ${variant.variantName}`, sku: variant.sku, quantity: '1.000', unitPrice: variant.priceOverride ?? product.sellingPrice, barcode: variant.barcodes[0]?.value }); setQ(''); setProducts([]); searchRef.current?.focus(); }}><strong>{product.name}</strong><span className="block text-xs text-slate-500">{variant.variantName} · {variant.sku} · {formatCurrency(variant.priceOverride ?? product.sellingPrice)}</span></button>))}</div> : null}
+        <table className="w-full rounded-xl bg-white text-sm shadow-sm">
+          <thead className="bg-slate-100">
+            <tr>
+              <th className="p-2 text-left">Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {cart.lines.map((l) => (
+              <tr key={l.productVariantId} className="border-t">
+                <td className="p-2">
+                  {l.name}
+                  <div className="text-xs text-slate-500">{l.sku}</div>
+                </td>
+                <td className="text-center"><button onClick={() => cart.decrement(l.productVariantId)}>-</button><span className="px-2">{l.quantity}</span><button onClick={() => cart.increment(l.productVariantId)}>+</button></td>
+                <td className="text-center">{formatCurrency(l.unitPrice)}</td>
+                <td>
+                  <button onClick={() => cart.remove(l.productVariantId)}>Remove</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <aside className="rounded-xl bg-white p-4 shadow-sm">
+        <p className="text-sm text-slate-500">Server recalculates totals. F2 checkout · F9 new · Esc clear</p>
+        <select className="mt-3 w-full rounded border px-2 py-2" value={methodId} onChange={(e) => setMethodId(e.target.value)}>
+          {methods.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+        <select className="mt-2 w-full rounded border px-2 py-2" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+          <option value="">Walk-in customer</option>
+          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</option>)}
+        </select>
+        <select className="mt-2 w-full rounded border px-2 py-2" value={receiptFormat} onChange={(e) => setReceiptFormat(e.target.value as 'thermal' | 'a4')}><option value="thermal">Thermal receipt</option><option value="a4">A4 receipt</option></select>
+        <input
+          className="mt-2 w-full rounded border px-2 py-2"
+          placeholder="Amount tendered"
+          value={tendered}
+          onChange={(e) => setTendered(e.target.value)}
+        />
+        <button className="mt-4 w-full rounded-md bg-accent py-3 text-white" onClick={() => void checkout()}>
+          Complete sale (F2)
+        </button>
+        {lastReceipt ? <button className="mt-2 w-full rounded-md border py-2" onClick={() => { const bytes = Uint8Array.from(atob(lastReceipt), (c) => c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))); }}>Print last receipt</button> : null}
+        {message ? <p className="mt-3 text-sm">{message}</p> : null}
+      </aside>
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear the cart?"
+        onCancel={() => setConfirmClear(false)}
+        onConfirm={() => {
+          cart.clear();
+          setConfirmClear(false);
+          searchRef.current?.focus();
+        }}
+      />
+    </div>
+  );
+}

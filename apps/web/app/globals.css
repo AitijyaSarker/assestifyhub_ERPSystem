@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --canvas: #f5f4ef;
+  --surface: #fffefa;
+  --ink: #182124;
+  --muted: #738087;
+  --line: #e3e5df;
+  --mint: #1e8477;
+  --mint-soft: #dff2ec;
+  --coral: #df745c;
+  --navy: #162d35;
+  --panel: #ffffff;
+  --panel-alt: #f7f7f4;
+  --button-text: #ffffff;
+  --shadow-soft: rgba(22, 45, 53, 0.12);
+}
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'DM Sans', 'Avenir Next', sans-serif;
+  @apply antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: var(--mint-soft);
+  color: var(--navy);
+}

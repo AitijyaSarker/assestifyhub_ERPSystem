@@ -1,0 +1,2 @@
+-- Backup restore is documented in docs/decisions/backup-restore-runbook.md
+-- Currency is system-wide (SystemSetting.active_currency), not Shop.currency.
