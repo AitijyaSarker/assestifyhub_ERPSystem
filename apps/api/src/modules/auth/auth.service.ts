@@ -70,7 +70,17 @@ export class AuthService {
           userAgent,
         },
       });
-      if (user && failed >= 2) await this.prisma.securityEvent.create({ data: { userId: user.id, eventType: 'SUSPICIOUS_LOGIN', ipAddress: ip, description: 'Repeated failed login attempts' } });
+      if (user && failed >= 2) {
+        await this.prisma.securityEvent.create({ data: { userId: user.id, eventType: 'SUSPICIOUS_LOGIN', ipAddress: ip, description: 'Repeated failed login attempts' } });
+        await this.prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: 'SUSPICIOUS_LOGIN',
+            title: 'Suspicious login attempt',
+            message: `Repeated failed login attempts were detected from ${ip ?? 'an unknown IP'}.`,
+          },
+        });
+      }
       throw new AppError(ERROR_CODES.AUTH_INVALID_CREDENTIALS, 'Invalid credentials', HttpStatus.UNAUTHORIZED);
     }
 
@@ -248,8 +258,8 @@ export class AuthService {
   private setRefreshCookie(res: Response, token: string, expiresAt: Date) {
     res.cookie('refresh_token', token, {
       httpOnly: true,
-      secure: process.env.COOKIE_SECURE === 'true',
-      sameSite: 'lax',
+      secure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
+      sameSite: process.env.COOKIE_SAMESITE === 'lax' ? 'lax' : 'strict',
       expires: expiresAt,
       path: '/api/v1/auth',
     });

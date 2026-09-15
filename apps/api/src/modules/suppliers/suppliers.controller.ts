@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Param, Post } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -24,6 +24,15 @@ export class SuppliersController {
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateSupplierDto) {
     const row = await this.prisma.supplier.create({ data: dto });
     await this.audit.write(user, 'SUPPLIER_CREATE', 'Supplier', row.id);
+    return row;
+  }
+
+  @Patch(':id')
+  @RequirePermissions('suppliers.manage')
+  async update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: CreateSupplierDto) {
+    const existing = await this.prisma.supplier.findUniqueOrThrow({ where: { id } });
+    const row = await this.prisma.supplier.update({ where: { id }, data: dto });
+    await this.audit.write(user, 'SUPPLIER_UPDATE', 'Supplier', id, existing as never, dto as never);
     return row;
   }
 }

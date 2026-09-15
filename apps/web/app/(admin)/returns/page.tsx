@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { api } from '@/lib/api';
 import { useCurrencyPreferences } from '@/app/providers';
@@ -34,6 +34,8 @@ interface Return {
   customer?: { name: string; phone?: string; email?: string };
 }
 
+type Sale = { id: string; shopId: string; receiptNumber: string; items: { id: string; productNameSnapshot: string; skuSnapshot: string; quantity: string }[] };
+
 const STATUS_BADGES: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-800',
   PENDING: 'bg-yellow-100 text-yellow-800',
@@ -51,10 +53,46 @@ export default function ReturnsPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [returnForm, setReturnForm] = useState({ saleId: '', saleItemId: '', quantity: '1.000', reason: '', resolution: 'REFUND' });
+  const [evidence, setEvidence] = useState<File[]>([]);
 
   useEffect(() => {
+    const admin = (JSON.parse(localStorage.getItem('roles') ?? '[]') as string[]).includes('SUPER_ADMIN');
+    setIsAdmin(admin);
     loadReturns();
+    if (!admin) api<Sale[]>('/sales').then((result) => setSales(result.data ?? [])).catch(() => undefined);
   }, [filterStatus]);
+
+  async function submitReturn(event: FormEvent) {
+    event.preventDefault();
+    const sale = sales.find((item) => item.id === returnForm.saleId);
+    if (!sale) return;
+    try {
+      const result = await api<{ id: string }>('/returns', {
+        method: 'POST',
+        body: JSON.stringify({
+          shopId: sale.shopId,
+          saleId: sale.id,
+          reason: returnForm.reason,
+          resolution: returnForm.resolution,
+          items: [{ saleItemId: returnForm.saleItemId, quantity: returnForm.quantity }],
+        }),
+      });
+      for (const file of evidence) {
+        const body = new FormData();
+        body.append('file', file);
+        await api(`/returns/${result.data.id}/evidence`, { method: 'POST', body });
+      }
+      setReturnForm({ saleId: '', saleItemId: '', quantity: '1.000', reason: '', resolution: 'REFUND' });
+      setEvidence([]);
+      setError('Return request submitted for Super Admin review.');
+      await loadReturns();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
 
   async function loadReturns() {
     try {
@@ -106,6 +144,26 @@ export default function ReturnsPage() {
         title="Product Returns"
         subtitle="Review and approve customer return requests. Upload images as evidence. Process refunds or exchanges."
       />
+
+      {!isAdmin ? <form onSubmit={submitReturn} className="space-y-3 rounded-xl bg-white p-5 shadow-sm">
+        <h2 className="font-semibold">Create return request</h2>
+        <div className="grid gap-2 md:grid-cols-2">
+          <select required className="rounded-lg border px-3 py-2 text-sm" value={returnForm.saleId} onChange={(event) => setReturnForm({ ...returnForm, saleId: event.target.value, saleItemId: '' })}>
+            <option value="">Select original receipt</option>
+            {sales.map((sale) => <option key={sale.id} value={sale.id}>{sale.receiptNumber}</option>)}
+          </select>
+          <select required className="rounded-lg border px-3 py-2 text-sm" value={returnForm.saleItemId} onChange={(event) => setReturnForm({ ...returnForm, saleItemId: event.target.value })}>
+            <option value="">Select product</option>
+            {(sales.find((sale) => sale.id === returnForm.saleId)?.items ?? []).map((item) => <option key={item.id} value={item.id}>{item.productNameSnapshot} · {item.skuSnapshot}</option>)}
+          </select>
+          <input required className="rounded-lg border px-3 py-2 text-sm" value={returnForm.quantity} onChange={(event) => setReturnForm({ ...returnForm, quantity: event.target.value })} placeholder="Quantity" />
+          <select className="rounded-lg border px-3 py-2 text-sm" value={returnForm.resolution} onChange={(event) => setReturnForm({ ...returnForm, resolution: event.target.value })}><option value="REFUND">Refund</option><option value="EXCHANGE">Exchange</option></select>
+        </div>
+        <textarea required className="min-h-20 w-full rounded-lg border px-3 py-2 text-sm" value={returnForm.reason} onChange={(event) => setReturnForm({ ...returnForm, reason: event.target.value })} placeholder="Describe the product problem" />
+        <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setEvidence(Array.from(event.target.files ?? []))} />
+        {evidence.length ? <p className="text-xs text-slate-500">{evidence.length} evidence image(s) selected</p> : null}
+        <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Submit return request</button>
+      </form> : null}
 
       {/* Status Filter */}
       <div className="flex gap-2">
@@ -285,7 +343,7 @@ export default function ReturnsPage() {
               )}
 
               {/* Action Buttons */}
-              {selectedReturn.status === 'PENDING' && (
+              {isAdmin && selectedReturn.status === 'PENDING' && (
                 <div className="flex gap-2 pt-4 border-t">
                   <button
                     onClick={() => approveReturn(selectedReturn.id, true)}

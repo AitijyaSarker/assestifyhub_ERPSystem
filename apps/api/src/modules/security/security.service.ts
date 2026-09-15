@@ -95,7 +95,17 @@ export class SecurityService {
     });
     if (device.trusted) return { trusted: true, deviceId: device.id };
     const existing = await this.prisma.deviceLoginRequest.findFirst({ where: { userId, deviceId: device.id, status: 'PENDING' } });
-    if (!existing) await this.prisma.deviceLoginRequest.create({ data: { userId, deviceId: device.id, ipAddress } });
+    if (!existing) {
+      await this.prisma.deviceLoginRequest.create({ data: { userId, deviceId: device.id, ipAddress } });
+      await this.prisma.notification.create({
+        data: {
+          userId,
+          type: 'NEW_DEVICE_LOGIN',
+          title: 'New device login requires approval',
+          message: `A login attempt from ${userAgent ?? 'an unknown device'} at ${ipAddress ?? 'an unknown IP'} is waiting for approval.`,
+        },
+      });
+    }
     return { trusted: false, deviceId: device.id };
   }
 

@@ -24,6 +24,7 @@ export default function ProductsPage() {
   const [price, setPrice] = useState('0.00');
   const [cost, setCost] = useState('0.00');
   const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [attributeName, setAttributeName] = useState('');
   const [attributeValues, setAttributeValues] = useState('');
 
@@ -37,6 +38,13 @@ export default function ProductsPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    let uploadedImageUrl = imageUrl;
+    if (imageFile) {
+      const body = new FormData();
+      body.append('file', imageFile);
+      const upload = await api<{ url: string }>('/products/images', { method: 'POST', body });
+      uploadedImageUrl = upload.data.url;
+    }
     await api('/products', {
       method: 'POST',
       body: JSON.stringify({
@@ -44,12 +52,13 @@ export default function ProductsPage() {
         productCode: code,
         purchasePrice: cost,
         sellingPrice: price,
-        images: imageUrl ? [{ url: imageUrl, isPrimary: true }] : undefined,
+        images: uploadedImageUrl ? [{ url: uploadedImageUrl, isPrimary: true }] : undefined,
         attributes: attributeName ? [{ name: attributeName, values: attributeValues.split(',').map((value) => ({ value: value.trim() })).filter((value) => value.value) }] : undefined,
         variants: [{ sku, variantName: 'Default', attributeValues: attributeValues.split(',').map((value) => value.trim()).filter(Boolean), barcodes: barcode ? [{ value: barcode, format: 'CODE128' }] : [] }],
       }),
     });
     setName('');
+    setImageFile(null);
     await load();
   }
 
@@ -76,6 +85,7 @@ export default function ProductsPage() {
         <input className="rounded border px-2 py-1" placeholder="Cost" value={cost} onChange={(e) => setCost(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+        <input className="rounded border px-2 py-1" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
         <input className="rounded border px-2 py-1" placeholder="Attribute name e.g. Colour" value={attributeName} onChange={(e) => setAttributeName(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Values comma-separated" value={attributeValues} onChange={(e) => setAttributeValues(e.target.value)} />
         <button className="col-span-6 rounded bg-accent py-2 text-white">Create product</button>

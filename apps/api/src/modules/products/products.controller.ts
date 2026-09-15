@@ -1,4 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { randomUUID } from 'crypto';
+import { extname } from 'path';
 import { ProductsService } from './products.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -7,6 +11,8 @@ import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { CreateBrandDto, UpdateBrandDto } from './dto/brand.dto';
 import { LabelsService } from './labels.service';
+import { AppError } from '../../common/errors/app-error';
+import { ERROR_CODES } from '@erp/shared-types';
 
 @Controller()
 export class ProductsController {
@@ -73,6 +79,23 @@ export class ProductsController {
   @RequirePermissions('products.create')
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
     return this.products.create(user, dto);
+  }
+
+  @Post('products/images')
+  @RequirePermissions('products.create', 'products.update')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads/products',
+        filename: (_request, file, callback) => callback(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`),
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_request, file, callback) => callback(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)),
+    }),
+  )
+  image(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Valid image file required');
+    return { url: `/uploads/products/${file.filename}` };
   }
 
   @Patch('products/:id')

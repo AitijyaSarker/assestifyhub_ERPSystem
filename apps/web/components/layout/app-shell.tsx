@@ -9,7 +9,10 @@ import { useCurrencyPreferences } from '@/app/providers';
 const adminLinks = [
   ['/dashboard', 'Dashboard'],
   ['/products', 'Products'],
+  ['/customers', 'Customers'],
+  ['/suppliers', 'Suppliers'],
   ['/inventory', 'Inventory'],
+  ['/transfers', 'Transfers'],
   ['/purchases', 'Purchases'],
   ['/pos', 'POS'],
   ['/sales', 'Sales'],
