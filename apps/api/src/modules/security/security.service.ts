@@ -110,6 +110,9 @@ export class SecurityService {
   async approveDevice(user: AuthUser, requestId: string) {
     const request = await this.prisma.deviceLoginRequest.findUnique({ where: { id: requestId } });
     if (!request || request.status !== 'PENDING') throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Pending device request not found', HttpStatus.NOT_FOUND);
+    if (!user.roles.includes('SUPER_ADMIN') && request.userId !== user.id) {
+      throw new AppError(ERROR_CODES.PERMISSION_DENIED, 'Device request not found', HttpStatus.NOT_FOUND);
+    }
     const updated = await this.prisma.deviceLoginRequest.update({ where: { id: requestId }, data: { status: 'APPROVED', resolvedAt: new Date() } });
     await this.prisma.trustedDevice.upsert({ where: { deviceId: request.deviceId }, create: { deviceId: request.deviceId }, update: {} });
     await this.audit.write(user, 'DEVICE_APPROVED', 'DeviceLoginRequest', requestId);
@@ -119,6 +122,9 @@ export class SecurityService {
   async rejectDevice(user: AuthUser, requestId: string) {
     const request = await this.prisma.deviceLoginRequest.findUnique({ where: { id: requestId } });
     if (!request || request.status !== 'PENDING') throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Pending device request not found', HttpStatus.NOT_FOUND);
+    if (!user.roles.includes('SUPER_ADMIN') && request.userId !== user.id) {
+      throw new AppError(ERROR_CODES.PERMISSION_DENIED, 'Device request not found', HttpStatus.NOT_FOUND);
+    }
     const updated = await this.prisma.deviceLoginRequest.update({ where: { id: requestId }, data: { status: 'REJECTED', resolvedAt: new Date() } });
     await this.audit.write(user, 'DEVICE_REJECTED', 'DeviceLoginRequest', requestId);
     return updated;

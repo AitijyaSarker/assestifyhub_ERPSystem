@@ -27,8 +27,11 @@ export class ProductsService {
     return row;
   }
 
-  updateCategory(id: string, dto: UpdateCategoryDto) {
-    return this.prisma.category.update({ where: { id }, data: dto });
+  async updateCategory(user: AuthUser, id: string, dto: UpdateCategoryDto) {
+    const existing = await this.prisma.category.findUniqueOrThrow({ where: { id } });
+    const updated = await this.prisma.category.update({ where: { id }, data: dto });
+    await this.audit.write(user, 'CATEGORY_UPDATE', 'Category', id, existing as never, dto as never);
+    return updated;
   }
 
   brands() {
@@ -41,8 +44,11 @@ export class ProductsService {
     return row;
   }
 
-  updateBrand(id: string, dto: UpdateBrandDto) {
-    return this.prisma.brand.update({ where: { id }, data: dto });
+  async updateBrand(user: AuthUser, id: string, dto: UpdateBrandDto) {
+    const existing = await this.prisma.brand.findUniqueOrThrow({ where: { id } });
+    const updated = await this.prisma.brand.update({ where: { id }, data: dto });
+    await this.audit.write(user, 'BRAND_UPDATE', 'Brand', id, existing as never, dto as never);
+    return updated;
   }
 
   list(search?: string) {

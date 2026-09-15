@@ -29,8 +29,8 @@ export class ProductsController {
 
   @Patch('categories/:id')
   @RequirePermissions('categories.manage')
-  updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
-    return this.products.updateCategory(id, dto);
+  updateCategory(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateCategoryDto) {
+    return this.products.updateCategory(user, id, dto);
   }
 
   @Get('brands')
@@ -47,8 +47,8 @@ export class ProductsController {
 
   @Patch('brands/:id')
   @RequirePermissions('brands.manage')
-  updateBrand(@Param('id') id: string, @Body() dto: UpdateBrandDto) {
-    return this.products.updateBrand(id, dto);
+  updateBrand(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateBrandDto) {
+    return this.products.updateBrand(user, id, dto);
   }
 
   @Get('products')
