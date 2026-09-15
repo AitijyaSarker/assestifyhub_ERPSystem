@@ -20,10 +20,10 @@ export class ReturnsService {
     private readonly audit: AuditService,
   ) {}
 
-  list(user: AuthUser, shopId?: string, search?: string) {
+  list(user: AuthUser, shopId?: string, search?: string, status?: string) {
     const ids = scopedShopIds(user, shopId);
     return this.prisma.return.findMany({
-      where: { ...(ids.length ? { shopId: { in: ids } } : {}), ...(search ? { OR: [{ returnNumber: { contains: search, mode: 'insensitive' } }, { sale: { receiptNumber: { contains: search, mode: 'insensitive' } } }] } : {}) },
+      where: { ...(ids.length ? { shopId: { in: ids } } : {}), ...(status ? { status: status as ReturnStatus } : {}), ...(search ? { OR: [{ returnNumber: { contains: search, mode: 'insensitive' } }, { sale: { receiptNumber: { contains: search, mode: 'insensitive' } } }] } : {}) },
       include: { items: true, evidence: true, decisions: true, refund: true, exchange: true, sale: true },
       orderBy: { createdAt: 'desc' },
     });

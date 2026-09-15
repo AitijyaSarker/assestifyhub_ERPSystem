@@ -75,6 +75,13 @@ export default function SecurityPage() {
     setPasskeys((current) => current.filter((passkey) => passkey.id !== id));
   }
 
+  async function renamePasskey(id: string, currentLabel?: string) {
+    const label = window.prompt('Passkey name', currentLabel ?? 'Passkey');
+    if (!label) return;
+    const result = await api<Passkey>(`/security/passkeys/${id}/rename`, { method: 'POST', body: JSON.stringify({ label }) });
+    setPasskeys((current) => current.map((passkey) => passkey.id === id ? result.data : passkey));
+  }
+
   async function registerPasskey() {
     const options = await api<PublicKeyCredentialCreationOptionsJSON>('/security/passkeys/registration/options', { method: 'POST' });
     const response = await startRegistration({ optionsJSON: options.data });
@@ -135,7 +142,7 @@ export default function SecurityPage() {
         <div className="flex items-center justify-between gap-4"><h2 className="font-semibold">Passkeys</h2><button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium" onClick={registerPasskey}>Register passkey</button></div>
         <p className="mt-1 text-sm text-slate-500">Registered biometric and security-key credentials.</p>
         <div className="mt-4 space-y-2">
-          {passkeys.map((passkey) => <div key={passkey.id} className="flex items-center justify-between rounded-lg border p-3 text-sm"><span>{passkey.label || 'Unnamed passkey'}<br /><span className="text-slate-500">{passkey.deviceInfo || 'Unknown device'}</span></span><button className="text-red-600" onClick={() => revokePasskey(passkey.id)}>Revoke</button></div>)}
+          {passkeys.map((passkey) => <div key={passkey.id} className="flex items-center justify-between rounded-lg border p-3 text-sm"><span>{passkey.label || 'Unnamed passkey'}<br /><span className="text-slate-500">{passkey.deviceInfo || 'Unknown device'}</span></span><span className="flex gap-3"><button className="text-slate-600" onClick={() => renamePasskey(passkey.id, passkey.label)}>Rename</button><button className="text-red-600" onClick={() => revokePasskey(passkey.id)}>Revoke</button></span></div>)}
           {!passkeys.length ? <p className="text-sm text-slate-500">No passkeys registered.</p> : null}
         </div>
       </section>

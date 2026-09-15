@@ -35,8 +35,8 @@ export class ReturnsController {
 
   @Get()
   @RequirePermissions('returns.view', 'returns.create')
-  list(@CurrentUser() user: AuthUser, @Query('shopId') shopId?: string, @Query('search') search?: string) {
-    return this.returns.list(user, shopId, search);
+  list(@CurrentUser() user: AuthUser, @Query('shopId') shopId?: string, @Query('search') search?: string, @Query('status') status?: string) {
+    return this.returns.list(user, shopId, search, status);
   }
 
   @Post()

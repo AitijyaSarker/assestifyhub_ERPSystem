@@ -26,8 +26,8 @@ export class ReportsController {
       this.prisma.product.count({ where: { status: 'ACTIVE' } }),
       this.prisma.inventoryBalance.findMany({ where: shopIds.length ? { shopId: { in: shopIds } } : undefined, select: { quantityOnHand: true, minimumStockLevel: true, reorderLevel: true } }),
       this.prisma.return.count({ where: { ...shopWhere, status: 'PENDING' } }),
-      this.prisma.shop.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.user.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.shop.count({ where: { status: 'ACTIVE', ...(shopIds.length ? { id: { in: shopIds } } : {}) } }),
+      this.prisma.user.count({ where: { status: 'ACTIVE', ...(shopIds.length ? { userShops: { some: { shopId: { in: shopIds } } } } : {}) } }),
       this.prisma.sale.findMany({ where: { ...shopWhere, status: 'COMPLETED', createdAt: { gte: new Date(Date.now() - 7 * 86400000) } }, include: { items: { include: { variant: { include: { product: true } } } } }, orderBy: { createdAt: 'asc' } }),
     ]);
     const total = (rows: { grandTotal: unknown }[]) => rows.reduce((sum, row) => sum.plus(d(String(row.grandTotal))), d(0));

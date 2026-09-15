@@ -13,8 +13,8 @@ export class SalesController {
 
   @Get()
   @RequirePermissions('sales.view', 'sales.view.own_shop')
-  list(@CurrentUser() user: AuthUser, @Query('shopId') shopId?: string, @Query('search') search?: string) {
-    return this.checkout.list(user, shopId, search);
+  list(@CurrentUser() user: AuthUser, @Query('shopId') shopId?: string, @Query('search') search?: string, @Query('cashierId') cashierId?: string, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.checkout.list(user, shopId, search, cashierId, from, to);
   }
 
   @Get(':id')

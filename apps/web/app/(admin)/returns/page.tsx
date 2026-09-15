@@ -35,6 +35,8 @@ interface Return {
 }
 
 type Sale = { id: string; shopId: string; receiptNumber: string; items: { id: string; productNameSnapshot: string; skuSnapshot: string; quantity: string }[] };
+type PaymentMethod = { id: string; name: string };
+type ReplacementProduct = { name: string; variants: { id: string; variantName: string; sku: string }[] };
 
 const STATUS_BADGES: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-800',
@@ -57,12 +59,20 @@ export default function ReturnsPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [returnForm, setReturnForm] = useState({ saleId: '', saleItemId: '', quantity: '1.000', reason: '', resolution: 'REFUND' });
   const [evidence, setEvidence] = useState<File[]>([]);
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [replacementProducts, setReplacementProducts] = useState<ReplacementProduct[]>([]);
+  const [refundMethodId, setRefundMethodId] = useState('');
+  const [replacementVariantId, setReplacementVariantId] = useState('');
 
   useEffect(() => {
     const admin = (JSON.parse(localStorage.getItem('roles') ?? '[]') as string[]).includes('SUPER_ADMIN');
     setIsAdmin(admin);
     loadReturns();
     if (!admin) api<Sale[]>('/sales').then((result) => setSales(result.data ?? [])).catch(() => undefined);
+    if (admin) {
+      api<PaymentMethod[]>('/payments/methods').then((result) => { setMethods(result.data ?? []); setRefundMethodId(result.data?.[0]?.id ?? ''); }).catch(() => undefined);
+      api<ReplacementProduct[]>('/products').then((result) => setReplacementProducts(result.data ?? [])).catch(() => undefined);
+    }
   }, [filterStatus]);
 
   async function submitReturn(event: FormEvent) {
@@ -136,6 +146,19 @@ export default function ReturnsPage() {
     } catch (err) {
       setError((err as Error).message);
     }
+  }
+
+  async function processRefund(returnId: string) {
+    await api(`/returns/${returnId}/refund`, { method: 'POST', body: JSON.stringify({ methodId: refundMethodId }) });
+    await loadReturns();
+    setSelectedReturn(null);
+  }
+
+  async function processExchange(returnId: string) {
+    if (!replacementVariantId) return;
+    await api(`/returns/${returnId}/exchange`, { method: 'POST', body: JSON.stringify({ methodId: refundMethodId, items: [{ replacementVariantId, quantity: '1.000' }] }) });
+    await loadReturns();
+    setSelectedReturn(null);
   }
 
   return (
@@ -368,6 +391,7 @@ export default function ReturnsPage() {
                   </button>
                 </div>
               )}
+              {isAdmin && selectedReturn.status === 'APPROVED' ? <div className="space-y-2 border-t pt-4"><select className="w-full rounded border px-3 py-2 text-sm" value={refundMethodId} onChange={(event) => setRefundMethodId(event.target.value)}><option value="">Payment method</option>{methods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}</select><button className="w-full rounded bg-emerald-600 py-2 text-white" onClick={() => processRefund(selectedReturn.id).catch((err) => setError((err as Error).message))}>Process refund</button><select className="w-full rounded border px-3 py-2 text-sm" value={replacementVariantId} onChange={(event) => setReplacementVariantId(event.target.value)}><option value="">Replacement variant</option>{replacementProducts.flatMap((product) => product.variants.map((variant) => <option key={variant.id} value={variant.id}>{product.name} · {variant.variantName} · {variant.sku}</option>))}</select><button className="w-full rounded bg-purple-600 py-2 text-white" onClick={() => processExchange(selectedReturn.id).catch((err) => setError((err as Error).message))}>Complete exchange</button></div> : null}
             </div>
           </div>
         </div>

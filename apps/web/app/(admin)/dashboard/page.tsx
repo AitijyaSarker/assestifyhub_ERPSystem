@@ -18,6 +18,8 @@ type Dashboard = {
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<Dashboard | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => { setIsAdmin((JSON.parse(localStorage.getItem('roles') ?? '[]') as string[]).includes('SUPER_ADMIN')); }, []);
   useEffect(() => { api<Dashboard>('/reports/dashboard').then((result) => setMetrics(result.data)).catch(() => undefined); }, []);
   const maxRevenue = Math.max(...(metrics?.trend ?? []).map((point) => Number(point.revenue)), 1);
   return (
@@ -38,8 +40,8 @@ export default function DashboardPage() {
         <div className="mt-8 flex h-52 items-end gap-2 border-b border-[var(--line)] sm:gap-5">{(metrics?.trend ?? []).map((point) => <div key={point.date} className="flex h-full flex-1 items-end gap-1" title={`${point.date}: revenue ${point.revenue}, profit ${point.profit}`}><div className="w-1/2 rounded-t bg-[var(--mint)]" style={{ height: `${Math.max(4, Number(point.revenue) / maxRevenue * 100)}%` }} /><div className="w-1/2 rounded-t bg-[var(--navy)]" style={{ height: `${Math.max(4, Number(point.profit) / maxRevenue * 100)}%` }} /></div>)}</div>
         <div className="mt-3 flex justify-between text-[10px] uppercase tracking-wider text-[var(--muted)]">{(metrics?.trend ?? []).map((point) => <span key={point.date}>{point.date.slice(5)}</span>)}</div>
       </section>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Summary label="Monthly sales" value={metrics?.month.sales ?? '...'} detail={`${metrics?.month.transactions ?? '...'} transactions`} /><Summary label="Active products" value={String(metrics?.products ?? '...')} detail="Catalog items" /><Summary label="Out of stock" value={String(metrics?.outOfStock ?? '...')} detail="Needs replenishment" /><Summary label="Active users" value={String(metrics?.activeUsers ?? '...')} detail={`${metrics?.shops ?? '...'} active shops`} /></section>
-      <section className="grid gap-3 sm:grid-cols-3"><a href="/inventory" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Review inventory <span className="float-right">→</span></a><a href="/returns" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Review returns <span className="float-right">→</span></a><a href="/reports" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Open reports <span className="float-right">→</span></a></section>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Summary label="Monthly sales" value={metrics?.month.sales ?? '...'} detail={`${metrics?.month.transactions ?? '...'} transactions`} /><Summary label="Current stock" value={String(metrics?.products ?? '...')} detail="Catalog items" /><Summary label="Out of stock" value={String(metrics?.outOfStock ?? '...')} detail="Needs replenishment" /><Summary label={isAdmin ? 'Active users' : 'Assigned shops'} value={String(isAdmin ? metrics?.activeUsers ?? '...' : metrics?.shops ?? '...')} detail={isAdmin ? `${metrics?.shops ?? '...'} active shops` : 'Your accessible workspace'} /></section>
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><a href="/pos" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Start a sale <span className="float-right">→</span></a><a href="/inventory" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Review stock <span className="float-right">→</span></a><a href="/returns" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Review returns <span className="float-right">→</span></a></section>
     </div>
   );
 }

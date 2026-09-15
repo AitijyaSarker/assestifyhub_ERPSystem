@@ -6,6 +6,9 @@ export type CartLine = {
   sku: string;
   quantity: string;
   unitPrice: string;
+  discount: string;
+  taxRate: string;
+  availableStock?: string;
   barcode?: string;
 };
 

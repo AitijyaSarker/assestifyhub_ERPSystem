@@ -171,10 +171,10 @@ export class CheckoutService {
     });
   }
 
-  async list(user: AuthUser, shopId?: string, search?: string) {
+  async list(user: AuthUser, shopId?: string, search?: string, cashierId?: string, from?: string, to?: string) {
     const ids = scopedShopIds(user, shopId);
     return this.prisma.sale.findMany({
-      where: { ...(ids.length ? { shopId: { in: ids } } : {}), ...(search ? { OR: [{ receiptNumber: { contains: search, mode: 'insensitive' } }, { customer: { name: { contains: search, mode: 'insensitive' } } }] } : {}) },
+      where: { ...(ids.length ? { shopId: { in: ids } } : {}), ...(cashierId ? { cashierId } : {}), ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}), ...(search ? { OR: [{ receiptNumber: { contains: search, mode: 'insensitive' } }, { customer: { name: { contains: search, mode: 'insensitive' } } }] } : {}) },
       include: { items: true, payments: { include: { method: true } } },
       orderBy: { createdAt: 'desc' },
       take: 100,

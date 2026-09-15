@@ -9,7 +9,8 @@ import { useCurrencyPreferences } from '@/app/providers';
 type Method = { id: string; name: string };
 type Shop = { id: string; name: string };
 type Customer = { id: string; name: string; phone?: string };
-type Product = { name: string; sellingPrice: string; variants: { id: string; sku: string; variantName: string; priceOverride?: string | null; barcodes: { value: string }[] }[] };
+type InventoryRow = { productVariantId: string; quantityOnHand: string; quantityReserved: string };
+type Product = { name: string; sellingPrice: string; discount: string; taxRate: string; variants: { id: string; sku: string; variantName: string; priceOverride?: string | null; barcodes: { value: string }[] }[] };
 
 export function PosScreen() {
   const searchRef = useRef<HTMLInputElement>(null);
@@ -26,6 +27,7 @@ export function PosScreen() {
   const [customerId, setCustomerId] = useState('');
   const [lastReceipt, setLastReceipt] = useState('');
   const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
+  const [inventory, setInventory] = useState<Record<string, string>>({});
   const cart = useCart();
 
   useEffect(() => {
@@ -40,6 +42,25 @@ export function PosScreen() {
     });
     api<Customer[]>('/customers').then((r) => setCustomers(r.data ?? [])).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!cart.shopId) return;
+    api<InventoryRow[]>(`/inventory?shopId=${encodeURIComponent(cart.shopId)}`).then((result) => {
+      setInventory(Object.fromEntries((result.data ?? []).map((row) => [row.productVariantId, (Number(row.quantityOnHand) - Number(row.quantityReserved)).toFixed(3)])));
+    }).catch(() => undefined);
+  }, [cart.shopId]);
+
+  const totals = cart.lines.reduce((result, line) => {
+    const quantity = Number(line.quantity);
+    const gross = Number(line.unitPrice) * quantity;
+    const discount = Number(line.discount) * quantity;
+    result.subtotal += gross;
+    result.discount += discount;
+    result.tax += (gross - discount) * Number(line.taxRate) / 100;
+    return result;
+  }, { subtotal: 0, discount: 0, tax: 0 });
+  const grandTotal = totals.subtotal - totals.discount + totals.tax;
+  const change = Math.max(0, Number(tendered || 0) - grandTotal);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -88,6 +109,9 @@ export function PosScreen() {
         sku: v.sku,
         quantity: '1.000',
         unitPrice: v.priceOverride ?? v.product.sellingPrice,
+        discount: '0',
+        taxRate: '0',
+        availableStock: inventory[v.id],
         barcode: value,
       });
       setQ('');
@@ -110,7 +134,7 @@ export function PosScreen() {
           payments: [
             {
               methodId,
-              amount: '0.00',
+              amount: grandTotal.toFixed(2),
               ...(tendered ? { amountTendered: tendered } : {}),
             },
           ],
@@ -157,7 +181,7 @@ export function PosScreen() {
             onKeyDown={scan}
           />
         </div>
-        {products.length ? <div className="mb-3 grid gap-2 rounded-xl bg-white p-3 shadow-sm sm:grid-cols-2">{products.flatMap((product) => product.variants.map((variant) => <button key={variant.id} className="rounded-lg border p-3 text-left hover:border-accent" onClick={() => { cart.add({ productVariantId: variant.id, name: `${product.name} ${variant.variantName}`, sku: variant.sku, quantity: '1.000', unitPrice: variant.priceOverride ?? product.sellingPrice, barcode: variant.barcodes[0]?.value }); setQ(''); setProducts([]); searchRef.current?.focus(); }}><strong>{product.name}</strong><span className="block text-xs text-slate-500">{variant.variantName} · {variant.sku} · {formatCurrency(variant.priceOverride ?? product.sellingPrice)}</span></button>))}</div> : null}
+        {products.length ? <div className="mb-3 grid gap-2 rounded-xl bg-white p-3 shadow-sm sm:grid-cols-2">{products.flatMap((product) => product.variants.map((variant) => <button key={variant.id} className="rounded-lg border p-3 text-left hover:border-accent" onClick={() => { cart.add({ productVariantId: variant.id, name: `${product.name} ${variant.variantName}`, sku: variant.sku, quantity: '1.000', unitPrice: variant.priceOverride ?? product.sellingPrice, discount: product.discount, taxRate: product.taxRate, availableStock: inventory[variant.id], barcode: variant.barcodes[0]?.value }); setQ(''); setProducts([]); searchRef.current?.focus(); }}><strong>{product.name}</strong><span className="block text-xs text-slate-500">{variant.variantName} · {variant.sku} · {formatCurrency(variant.priceOverride ?? product.sellingPrice)} · stock {inventory[variant.id] ?? '0.000'}</span></button>))}</div> : null}
         <table className="w-full rounded-xl bg-white text-sm shadow-sm">
           <thead className="bg-slate-100">
             <tr>
@@ -204,6 +228,7 @@ export function PosScreen() {
           value={tendered}
           onChange={(e) => setTendered(e.target.value)}
         />
+        <div className="mt-4 space-y-1 border-t pt-3 text-sm"><div className="flex justify-between"><span>Subtotal</span><strong>{formatCurrency(totals.subtotal.toFixed(2))}</strong></div><div className="flex justify-between"><span>Discount</span><strong>-{formatCurrency(totals.discount.toFixed(2))}</strong></div><div className="flex justify-between"><span>Tax</span><strong>{formatCurrency(totals.tax.toFixed(2))}</strong></div><div className="flex justify-between text-lg"><span>Total</span><strong>{formatCurrency(grandTotal.toFixed(2))}</strong></div><div className="flex justify-between text-emerald-700"><span>Change</span><strong>{formatCurrency(change.toFixed(2))}</strong></div></div>
         <button className="mt-4 w-full rounded-md bg-accent py-3 text-white" onClick={() => void checkout()}>
           Complete sale (F2)
         </button>
