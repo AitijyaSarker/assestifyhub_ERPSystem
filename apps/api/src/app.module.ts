@@ -27,6 +27,7 @@ import { SessionGuard } from './common/guards/session.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { ShopAccessGuard } from './common/guards/shop-access.guard';
 import { HealthController } from './health.controller';
+import { StorageModule } from './common/storage/storage.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { HealthController } from './health.controller';
     AuditModule,
     SecurityModule,
     BackupModule,
+    StorageModule,
   ],
   controllers: [HealthController],
   providers: [

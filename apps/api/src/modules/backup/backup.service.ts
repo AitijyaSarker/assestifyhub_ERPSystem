@@ -35,6 +35,17 @@ export class BackupService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.backupRecord.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }).then((rows) => rows.map((row) => ({ ...row, sizeBytes: row.sizeBytes.toString() })));
   }
 
+  async retention() {
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key: 'backup_retention_days' } });
+    return { days: Number(setting?.value ?? process.env.BACKUP_RETENTION_DAYS ?? 30) };
+  }
+
+  async setRetention(user: AuthUser, days: number) {
+    const row = await this.prisma.systemSetting.upsert({ where: { key: 'backup_retention_days' }, update: { value: days }, create: { key: 'backup_retention_days', value: days } });
+    await this.audit.write(user, 'BACKUP_RETENTION_UPDATE', 'SystemSetting', row.key, null, { days });
+    return { days };
+  }
+
   async createDatabaseBackup(user: AuthUser | null, reason: string) {
     const directory = process.env.BACKUP_DIR ?? './backups';
     await mkdir(directory, { recursive: true });
@@ -61,7 +72,8 @@ export class BackupService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async applyRetention(directory: string) {
-    const days = Number(process.env.BACKUP_RETENTION_DAYS ?? 30);
+    const configured = await this.prisma.systemSetting.findUnique({ where: { key: 'backup_retention_days' } });
+    const days = Number(configured?.value ?? process.env.BACKUP_RETENTION_DAYS ?? 30);
     if (days <= 0) return;
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const old = await this.prisma.backupRecord.findMany({ where: { createdAt: { lt: cutoff }, status: 'COMPLETED', fileUrl: { not: { startsWith: 'snapshot:' } } }, select: { id: true, fileUrl: true } });

@@ -20,7 +20,7 @@ export class ReportsController {
     startOfDay.setHours(0, 0, 0, 0);
     const startOfMonth = new Date(startOfDay.getFullYear(), startOfDay.getMonth(), 1);
     const shopWhere = shopIds.length ? { shopId: { in: shopIds } } : {};
-    const [todaySales, monthSales, products, inventory, pendingReturns, shops, users] = await Promise.all([
+    const [todaySales, monthSales, products, inventory, pendingReturns, shops, users, trendSales] = await Promise.all([
       this.prisma.sale.findMany({ where: { ...shopWhere, status: 'COMPLETED', createdAt: { gte: startOfDay } }, select: { grandTotal: true, currency: true } }),
       this.prisma.sale.findMany({ where: { ...shopWhere, status: 'COMPLETED', createdAt: { gte: startOfMonth } }, select: { grandTotal: true, currency: true } }),
       this.prisma.product.count({ where: { status: 'ACTIVE' } }),
@@ -28,8 +28,17 @@ export class ReportsController {
       this.prisma.return.count({ where: { ...shopWhere, status: 'PENDING' } }),
       this.prisma.shop.count({ where: { status: 'ACTIVE' } }),
       this.prisma.user.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.sale.findMany({ where: { ...shopWhere, status: 'COMPLETED', createdAt: { gte: new Date(Date.now() - 7 * 86400000) } }, include: { items: { include: { variant: { include: { product: true } } } } }, orderBy: { createdAt: 'asc' } }),
     ]);
     const total = (rows: { grandTotal: unknown }[]) => rows.reduce((sum, row) => sum.plus(d(String(row.grandTotal))), d(0));
+    const trend = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(Date.now() - (6 - index) * 86400000);
+      const key = date.toISOString().slice(0, 10);
+      const rows = trendSales.filter((sale) => sale.createdAt.toISOString().slice(0, 10) === key);
+      const revenue = rows.reduce((sum, sale) => sum.plus(d(sale.grandTotal)), d(0));
+      const cogs = rows.reduce((sum, sale) => sum.plus(sale.items.reduce((inner, item) => inner.plus(d(item.quantity).mul(d(item.variant.product.purchasePrice))), d(0))), d(0));
+      return { date: key, revenue: money(revenue).toFixed(2), profit: money(revenue.minus(cogs)).toFixed(2) };
+    });
     return {
       today: { sales: money(total(todaySales)).toFixed(2), transactions: todaySales.length, currency: todaySales[0]?.currency ?? 'BDT' },
       month: { sales: money(total(monthSales)).toFixed(2), transactions: monthSales.length },
@@ -39,6 +48,7 @@ export class ReportsController {
       pendingReturns,
       shops,
       activeUsers: users,
+      trend,
     };
   }
 

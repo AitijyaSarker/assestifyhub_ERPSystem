@@ -7,6 +7,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<Enve
   const headers = new Headers(init.headers);
   if (!(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
+  const csrf = typeof document !== 'undefined' ? document.cookie.split('; ').find((item) => item.startsWith('csrf_token='))?.split('=')[1] : undefined;
+  if (csrf) headers.set('x-csrf-token', csrf);
   const res = await fetch(`${API}${path}`, { ...init, headers, credentials: 'include' });
   const json = (await res.json()) as Envelope<T>;
   if (!res.ok || json.success === false) {

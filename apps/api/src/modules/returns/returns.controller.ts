@@ -21,13 +21,17 @@ import { CreateReturnDto, DecideReturnDto, ProcessRefundDto } from './dto/return
 import { AppError } from '../../common/errors/app-error';
 import { ERROR_CODES } from '@erp/shared-types';
 import { HttpStatus } from '@nestjs/common';
+import { StorageService } from '../../common/storage/storage.service';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 @Controller('returns')
 @ShopScoped()
 export class ReturnsController {
-  constructor(private readonly returns: ReturnsService) {}
+  constructor(
+    private readonly returns: ReturnsService,
+    private readonly storage: StorageService,
+  ) {}
 
   @Get()
   @RequirePermissions('returns.view', 'returns.create')
@@ -73,12 +77,13 @@ export class ReturnsController {
       },
     }),
   )
-  evidence(
+  async evidence(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'File required');
-    return this.returns.attachEvidence(user, id, file.filename);
+    const imageUrl = await this.storage.publish(file.path, `/uploads/returns/${file.filename}`, file.mimetype);
+    return this.returns.attachEvidence(user, id, imageUrl);
   }
 }

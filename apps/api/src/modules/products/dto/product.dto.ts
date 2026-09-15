@@ -6,10 +6,31 @@ import {
   IsString,
   Matches,
   ValidateNested,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
 } from 'class-validator';
+
+@ValidatorConstraint({ name: 'barcodeFormatValue', async: false })
+class BarcodeFormatValueConstraint implements ValidatorConstraintInterface {
+  validate(value: string, args: ValidationArguments) {
+    const format = (args.object as CreateBarcodeDto).format ?? 'CODE128';
+    if (format === 'EAN13') {
+      if (!/^\d{13}$/.test(value)) return false;
+      const digits = value.split('').map(Number);
+      const checksum = digits.slice(0, 12).reduce((sum, digit, index) => sum + digit * (index % 2 ? 3 : 1), 0);
+      return (10 - (checksum % 10)) % 10 === digits[12];
+    }
+    if (format === 'QR') return value.length >= 3 && value.length <= 200;
+    return /^[A-Za-z0-9._-]{3,80}$/.test(value);
+  }
+  defaultMessage() { return 'Barcode value does not match its selected format'; }
+}
 
 export class CreateBarcodeDto {
   @IsString()
+  @Validate(BarcodeFormatValueConstraint)
   value!: string;
 
   @IsOptional()

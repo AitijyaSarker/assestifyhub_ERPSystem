@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { basename } from 'path';
-import { IsString, MinLength } from 'class-validator';
+import { IsInt, IsString, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../../common/types/auth-user';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -21,6 +21,12 @@ class RestoreDto {
   confirmation!: string;
 }
 
+class RetentionDto {
+  @IsInt()
+  @Min(1)
+  days!: number;
+}
+
 @Controller('backup')
 export class BackupController {
   constructor(private readonly backups: BackupService) {}
@@ -29,6 +35,18 @@ export class BackupController {
   @RequirePermissions('backup.manage')
   records() {
     return this.backups.records();
+  }
+
+  @Get('retention')
+  @RequirePermissions('backup.manage')
+  retention() {
+    return this.backups.retention();
+  }
+
+  @Post('retention')
+  @RequirePermissions('backup.manage')
+  setRetention(@CurrentUser() user: AuthUser, @Body() dto: RetentionDto) {
+    return this.backups.setRetention(user, dto.days);
   }
 
   @Post('snapshot')

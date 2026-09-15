@@ -13,6 +13,8 @@ export default function SettingsPage() {
   const [confirm, setConfirm] = useState('');
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [methods, setMethods] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
+  const [newMethod, setNewMethod] = useState('');
 
   useEffect(() => {
     api<{ activeCurrency: string }>('/settings/currency').then((r) => {
@@ -20,7 +22,20 @@ export default function SettingsPage() {
       setSelected(nextCurrency);
       setActiveCurrency(nextCurrency);
     });
+    api<typeof methods>('/payments/methods/all').then((r) => setMethods(r.data ?? [])).catch(() => undefined);
   }, [setActiveCurrency]);
+
+  async function addMethod() {
+    if (!newMethod.trim()) return;
+    const result = await api<{ id: string; name: string; isActive: boolean }>('/payments/methods', { method: 'POST', body: JSON.stringify({ name: newMethod.trim() }) });
+    setMethods((current) => [...current, result.data]);
+    setNewMethod('');
+  }
+
+  async function toggleMethod(method: { id: string; name: string; isActive: boolean }) {
+    const result = await api<typeof method>(`/payments/methods/${method.id}`, { method: 'PATCH', body: JSON.stringify({ name: method.name, isActive: !method.isActive }) });
+    setMethods((current) => current.map((item) => item.id === result.data.id ? result.data : item));
+  }
 
   async function saveRate(e: FormEvent) {
     e.preventDefault();
@@ -88,6 +103,11 @@ export default function SettingsPage() {
         </button>
       </div>
       {msg ? <p className="mt-4 text-sm text-[var(--muted)]">{msg}</p> : null}
+      <section className="mt-8 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+        <h2 className="font-semibold text-[var(--ink)]">Payment methods</h2>
+        <div className="mt-3 flex gap-2"><input className="flex-1 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm" placeholder="New method, e.g. Card" value={newMethod} onChange={(e) => setNewMethod(e.target.value)} /><button className="rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white" onClick={() => void addMethod()}>Add</button></div>
+        <div className="mt-4 space-y-2">{methods.map((method) => <div key={method.id} className="flex items-center justify-between rounded-xl border border-[var(--line)] p-3 text-sm"><span>{method.name}</span><button className="rounded-lg border px-3 py-1" onClick={() => void toggleMethod(method)}>{method.isActive ? 'Disable' : 'Enable'}</button></div>)}</div>
+      </section>
       <ConfirmDialog
         open={open}
         title={`This converts current product prices only. Sales, purchases, refunds, and payments keep their original currency. Type-to-confirm is "${confirm || selected}". Continue?`}

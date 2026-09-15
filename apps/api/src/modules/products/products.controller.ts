@@ -13,12 +13,14 @@ import { CreateBrandDto, UpdateBrandDto } from './dto/brand.dto';
 import { LabelsService } from './labels.service';
 import { AppError } from '../../common/errors/app-error';
 import { ERROR_CODES } from '@erp/shared-types';
+import { StorageService } from '../../common/storage/storage.service';
 
 @Controller()
 export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly labels: LabelsService,
+    private readonly storage: StorageService,
   ) {}
 
   @Get('categories')
@@ -93,9 +95,9 @@ export class ProductsController {
       fileFilter: (_request, file, callback) => callback(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)),
     }),
   )
-  image(@UploadedFile() file: Express.Multer.File) {
+  async image(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Valid image file required');
-    return { url: `/uploads/products/${file.filename}` };
+    return { url: await this.storage.publish(file.path, `/uploads/products/${file.filename}`, file.mimetype) };
   }
 
   @Patch('products/:id')

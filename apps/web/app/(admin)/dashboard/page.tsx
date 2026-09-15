@@ -1,22 +1,48 @@
 'use client';
 
-import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useState } from 'react';
+import { PageHeader } from '@/components/layout/page-header';
 import { api } from '@/lib/api';
 
-type Dashboard = { today: { sales: string; transactions: number; currency: string }; month: { sales: string; transactions: number }; products: number; lowStock: number; outOfStock: number; pendingReturns: number; shops: number; activeUsers: number };
+type Dashboard = {
+  today: { sales: string; transactions: number; currency: string };
+  month: { sales: string; transactions: number };
+  products: number;
+  lowStock: number;
+  outOfStock: number;
+  pendingReturns: number;
+  shops: number;
+  activeUsers: number;
+  trend: { date: string; revenue: string; profit: string }[];
+};
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<Dashboard | null>(null);
   useEffect(() => { api<Dashboard>('/reports/dashboard').then((result) => setMetrics(result.data)).catch(() => undefined); }, []);
+  const maxRevenue = Math.max(...(metrics?.trend ?? []).map((point) => Number(point.revenue)), 1);
   return (
-    <div>
-      <PageHeader title="Good morning, admin" subtitle="Here is the pulse of your retail network today." actions={<button className="rounded-xl bg-[var(--mint)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#176d63]">Open POS</button>} />
-      <section className="mb-5 overflow-hidden rounded-3xl bg-[var(--navy)] p-6 text-white shadow-[0_18px_40px_rgba(22,45,53,0.12)] sm:p-8">
-        <div className="max-w-2xl"><div className="mb-5 flex items-center gap-2 text-xs font-medium text-[#a9d9ce]"><span className="h-2 w-2 rounded-full bg-[#7ed7a5]" /> Live workspace · HQ01</div><h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">A clear view of every sale, shelf, and shop.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-white/55">Keep today moving with the tools your team uses most. Your transactional core is online and ready for the next checkout.</p></div>
-        <div className="mt-8 grid max-w-2xl grid-cols-2 gap-6 border-t border-white/10 pt-5 sm:grid-cols-4"><div><p className="text-2xl font-semibold">{metrics ? `${metrics.today.currency} ${metrics.today.sales}` : '—'}</p><p className="mt-1 text-xs text-white/45">Today&apos;s sales</p></div><div><p className="text-2xl font-semibold">{metrics?.today.transactions ?? '—'}</p><p className="mt-1 text-xs text-white/45">Transactions</p></div><div><p className="text-2xl font-semibold">{metrics?.lowStock ?? '—'}</p><p className="mt-1 text-xs text-white/45">Low stock items</p></div><div><p className="text-2xl font-semibold">{metrics?.pendingReturns ?? '—'}</p><p className="mt-1 text-xs text-white/45">Open returns</p></div></div>
+    <div className="space-y-5">
+      <PageHeader title="Good morning, admin" subtitle="A live view of sales, inventory, returns, and profit across your retail network." actions={<a href="/pos" className="rounded-xl bg-[var(--mint)] px-4 py-2.5 text-sm font-semibold text-white">Open POS</a>} />
+      <section className="rounded-3xl bg-[var(--navy)] p-6 text-white shadow-sm sm:p-8">
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Live workspace</p>
+        <h2 className="mt-3 max-w-2xl font-display text-3xl font-semibold tracking-tight">A clear view of every sale, shelf, and shop.</h2>
+        <div className="mt-8 grid grid-cols-2 gap-5 border-t border-white/10 pt-5 sm:grid-cols-4">
+          <Metric label="Today's sales" value={metrics ? `${metrics.today.currency} ${metrics.today.sales}` : '...'} />
+          <Metric label="Transactions" value={String(metrics?.today.transactions ?? '...')} />
+          <Metric label="Low stock" value={String(metrics?.lowStock ?? '...')} />
+          <Metric label="Open returns" value={String(metrics?.pendingReturns ?? '...')} />
+        </div>
       </section>
-      <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]"><section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6"><div className="mb-6 flex items-center justify-between"><div><h3 className="font-display text-lg font-semibold text-[var(--navy)]">Today at a glance</h3><p className="mt-1 text-xs text-[var(--muted)]">Live activity across your workspace</p></div><span className="rounded-full bg-[var(--mint-soft)] px-3 py-1 text-xs font-semibold text-[var(--mint)]">All clear</span></div><div className="flex h-40 items-end gap-2 border-b border-[var(--line)] sm:gap-4"><div className="h-[32%] flex-1 rounded-t-lg bg-[#cae7dd]" /><div className="h-[48%] flex-1 rounded-t-lg bg-[#a6d6c9]" /><div className="h-[26%] flex-1 rounded-t-lg bg-[#d9eee7]" /><div className="h-[64%] flex-1 rounded-t-lg bg-[var(--mint)]" /><div className="h-[44%] flex-1 rounded-t-lg bg-[#a6d6c9]" /><div className="h-[76%] flex-1 rounded-t-lg bg-[var(--navy)]" /><div className="h-[54%] flex-1 rounded-t-lg bg-[#a6d6c9]" /></div><div className="mt-3 flex justify-between text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></section><section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6"><h3 className="font-display text-lg font-semibold text-[var(--navy)]">Quick actions</h3><p className="mt-1 text-xs text-[var(--muted)]">Jump into the work that matters.</p><div className="mt-6 grid gap-2"><a href="/pos" className="flex items-center justify-between rounded-2xl bg-[var(--mint-soft)] px-4 py-3 text-sm font-semibold text-[var(--navy)] transition hover:bg-[#c9e9df]"><span>Start a sale</span><span>→</span></a><a href="/inventory" className="flex items-center justify-between rounded-2xl border border-[var(--line)] px-4 py-3 text-sm font-semibold text-[var(--navy)] transition hover:border-[var(--mint)]"><span>Review inventory</span><span>→</span></a><a href="/reports" className="flex items-center justify-between rounded-2xl border border-[var(--line)] px-4 py-3 text-sm font-semibold text-[var(--navy)] transition hover:border-[var(--mint)]"><span>Open reports</span><span>→</span></a></div></section></div>
+      <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
+        <div className="flex items-center justify-between"><div><h3 className="font-display text-lg font-semibold text-[var(--navy)]">Revenue and profit</h3><p className="mt-1 text-xs text-[var(--muted)]">Last seven completed sales days</p></div><div className="flex gap-3 text-xs text-[var(--muted)]"><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--mint)]" />Revenue</span><span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[var(--navy)]" />Profit</span></div></div>
+        <div className="mt-8 flex h-52 items-end gap-2 border-b border-[var(--line)] sm:gap-5">{(metrics?.trend ?? []).map((point) => <div key={point.date} className="flex h-full flex-1 items-end gap-1" title={`${point.date}: revenue ${point.revenue}, profit ${point.profit}`}><div className="w-1/2 rounded-t bg-[var(--mint)]" style={{ height: `${Math.max(4, Number(point.revenue) / maxRevenue * 100)}%` }} /><div className="w-1/2 rounded-t bg-[var(--navy)]" style={{ height: `${Math.max(4, Number(point.profit) / maxRevenue * 100)}%` }} /></div>)}</div>
+        <div className="mt-3 flex justify-between text-[10px] uppercase tracking-wider text-[var(--muted)]">{(metrics?.trend ?? []).map((point) => <span key={point.date}>{point.date.slice(5)}</span>)}</div>
+      </section>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Summary label="Monthly sales" value={metrics?.month.sales ?? '...'} detail={`${metrics?.month.transactions ?? '...'} transactions`} /><Summary label="Active products" value={String(metrics?.products ?? '...')} detail="Catalog items" /><Summary label="Out of stock" value={String(metrics?.outOfStock ?? '...')} detail="Needs replenishment" /><Summary label="Active users" value={String(metrics?.activeUsers ?? '...')} detail={`${metrics?.shops ?? '...'} active shops`} /></section>
+      <section className="grid gap-3 sm:grid-cols-3"><a href="/inventory" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Review inventory <span className="float-right">→</span></a><a href="/returns" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Review returns <span className="float-right">→</span></a><a href="/reports" className="rounded-2xl border border-[var(--line)] bg-white p-4 text-sm font-semibold">Open reports <span className="float-right">→</span></a></section>
     </div>
   );
 }
+
+function Metric({ label, value }: { label: string; value: string }) { return <div><p className="text-2xl font-semibold">{value}</p><p className="mt-1 text-xs text-white/45">{label}</p></div>; }
+function Summary({ label, value, detail }: { label: string; value: string; detail: string }) { return <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">{label}</p><strong className="mt-2 block text-2xl text-[var(--navy)]">{value}</strong><p className="mt-1 text-xs text-[var(--muted)]">{detail}</p></div>; }
