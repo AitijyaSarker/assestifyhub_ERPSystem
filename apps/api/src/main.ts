@@ -26,7 +26,7 @@ async function bootstrap() {
     const token = csrfCookie ?? randomBytes(24).toString('hex');
     if (!csrfCookie) res.cookie('csrf_token', token, { httpOnly: false, sameSite: 'strict', secure: process.env.NODE_ENV === 'production', path: '/' });
     const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
-    const publicAuth = req.path === '/api/v1/auth/login' || req.path.startsWith('/api/v1/auth/passkey');
+    const publicAuth = req.path === '/api/v1/auth/login' || req.path === '/api/v1/auth/refresh' || req.path.startsWith('/api/v1/auth/passkey');
     const bearer = typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ');
     if (mutating && !publicAuth && !bearer && req.headers['x-csrf-token'] !== token) {
       return res.status(403).json({ success: false, message: 'CSRF token validation failed', error: { code: 'VALIDATION_ERROR' } });
