@@ -82,6 +82,46 @@ async function main() {
     },
   });
 
+  const existingDemoCategory = await prisma.category.findFirst({ where: { name: 'Demo Category' } });
+  const demoCategory = existingDemoCategory ?? await prisma.category.create({ data: { name: 'Demo Category' } });
+  if (!demoCategory.isActive) {
+    await prisma.category.update({ where: { id: demoCategory.id }, data: { isActive: true } });
+  }
+  const demoProduct = await prisma.product.upsert({
+    where: { productCode: 'DEMO-TSHIRT' },
+    update: {
+      name: 'Demo T-Shirt',
+      categoryId: demoCategory.id,
+      purchasePrice: '5.00',
+      sellingPrice: '15.00',
+      status: 'ACTIVE',
+      archivedAt: null,
+    },
+    create: {
+      name: 'Demo T-Shirt',
+      productCode: 'DEMO-TSHIRT',
+      categoryId: demoCategory.id,
+      purchasePrice: '5.00',
+      sellingPrice: '15.00',
+    },
+  });
+  const demoVariant = await prisma.productVariant.upsert({
+    where: { sku: 'DEMO-TSHIRT-DEFAULT' },
+    update: { productId: demoProduct.id, variantName: 'Default', isActive: true },
+    create: { productId: demoProduct.id, sku: 'DEMO-TSHIRT-DEFAULT', variantName: 'Default' },
+  });
+  const demoBarcode = await prisma.barcode.upsert({
+    where: { value: 'DEMO-TSHIRT-001' },
+    update: { variantId: demoVariant.id, format: 'CODE128' },
+    create: { variantId: demoVariant.id, value: 'DEMO-TSHIRT-001', format: 'CODE128' },
+  });
+  void demoBarcode;
+  await prisma.inventoryBalance.upsert({
+    where: { shopId_productVariantId: { shopId: shop.id, productVariantId: demoVariant.id } },
+    update: { quantityOnHand: '20.000', quantityReserved: '0.000' },
+    create: { shopId: shop.id, productVariantId: demoVariant.id, quantityOnHand: '20.000' },
+  });
+
   const email = process.env.SUPER_ADMIN_EMAIL ?? 'admin@erp.local';
   const password = process.env.SUPER_ADMIN_PASSWORD ?? 'ChangeMeNow!123';
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -110,7 +150,7 @@ async function main() {
     create: { userId: admin.id, shopId: shop.id, isPrimary: true },
   });
 
-  console.log(`Seeded SUPER_ADMIN ${email} and shop ${shop.code}`);
+  console.log(`Seeded SUPER_ADMIN ${email}, shop ${shop.code}, and demo stock for ${demoVariant.sku}`);
 }
 
 main()
