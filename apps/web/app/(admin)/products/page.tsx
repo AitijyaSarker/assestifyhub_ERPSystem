@@ -34,6 +34,8 @@ export default function ProductsPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [attributeName, setAttributeName] = useState('');
   const [attributeValues, setAttributeValues] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     const res = await api<Product[]>('/products');
@@ -47,31 +49,43 @@ export default function ProductsPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
-    let uploadedImageUrl = imageUrl;
-    if (imageFile) {
-      const body = new FormData();
-      body.append('file', imageFile);
-      const upload = await api<{ url: string }>('/products/images', { method: 'POST', body });
-      uploadedImageUrl = upload.data.url;
+    setSaving(true);
+    setMessage(null);
+    try {
+      let uploadedImageUrl = imageUrl;
+      if (imageFile) {
+        const body = new FormData();
+        body.append('file', imageFile);
+        const upload = await api<{ url: string }>('/products/images', { method: 'POST', body });
+        uploadedImageUrl = upload.data.url;
+      }
+      await api('/products', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: name.trim(),
+          productCode: code.trim(),
+          categoryId: categoryId || undefined,
+          brandId: brandId || undefined,
+          purchasePrice: cost,
+          sellingPrice: price,
+          images: uploadedImageUrl ? [{ url: uploadedImageUrl, isPrimary: true }] : undefined,
+          attributes: attributeName ? [{ name: attributeName.trim(), values: attributeValues.split(',').map((value) => ({ value: value.trim() })).filter((value) => value.value) }] : undefined,
+          variants: variants.map((variant) => ({ sku: variant.sku.trim(), variantName: variant.variantName.trim(), attributeValues: variant.attributeValues.split(',').map((value) => value.trim()).filter(Boolean), barcodes: variant.barcode ? [{ value: variant.barcode.trim(), format: 'CODE128' }] : [] })),
+        }),
+      });
+      setName('');
+      setCode('');
+      setCost('');
+      setPrice('');
+      setVariants([{ sku: '', variantName: 'Default', barcode: '', attributeValues: '' }]);
+      setImageFile(null);
+      await load();
+      setMessage('Product created successfully. Add stock from Inventory before selling.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSaving(false);
     }
-    await api('/products', {
-      method: 'POST',
-      body: JSON.stringify({
-        name,
-        productCode: code,
-        categoryId: categoryId || undefined,
-        brandId: brandId || undefined,
-        purchasePrice: cost,
-        sellingPrice: price,
-        images: uploadedImageUrl ? [{ url: uploadedImageUrl, isPrimary: true }] : undefined,
-        attributes: attributeName ? [{ name: attributeName, values: attributeValues.split(',').map((value) => ({ value: value.trim() })).filter((value) => value.value) }] : undefined,
-        variants: variants.map((variant) => ({ sku: variant.sku, variantName: variant.variantName, attributeValues: variant.attributeValues.split(',').map((value) => value.trim()).filter(Boolean), barcodes: variant.barcode ? [{ value: variant.barcode, format: 'CODE128' }] : [] })),
-      }),
-    });
-    setName('');
-    setVariants([{ sku: '', variantName: 'Default', barcode: '', attributeValues: '' }]);
-    setImageFile(null);
-    await load();
   }
 
   async function labels(id: string) {
@@ -88,22 +102,37 @@ export default function ProductsPage() {
 
   async function createCategory() {
     if (!categoryName.trim()) return;
-    const result = await api<Option>('/categories', { method: 'POST', body: JSON.stringify({ name: categoryName.trim() }) });
-    setCategories((current) => [...current, result.data]);
-    setCategoryName('');
+    setMessage(null);
+    try {
+      const result = await api<Option>('/categories', { method: 'POST', body: JSON.stringify({ name: categoryName.trim() }) });
+      setCategories((current) => [...current, result.data]);
+      setCategoryId(result.data.id);
+      setCategoryName('');
+      setMessage(`Category "${result.data.name}" added`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
   }
 
   async function createBrand() {
     if (!brandName.trim()) return;
-    const result = await api<Option>('/brands', { method: 'POST', body: JSON.stringify({ name: brandName.trim() }) });
-    setBrands((current) => [...current, result.data]);
-    setBrandName('');
+    setMessage(null);
+    try {
+      const result = await api<Option>('/brands', { method: 'POST', body: JSON.stringify({ name: brandName.trim() }) });
+      setBrands((current) => [...current, result.data]);
+      setBrandId(result.data.id);
+      setBrandName('');
+      setMessage(`Brand "${result.data.name}" added`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
   }
 
   return (
     <div>
       <PageHeader title="Products" subtitle="Catalog, variants, barcodes" />
-      <div className="mb-4 grid gap-2 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2"><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New category" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} /><button className="rounded border px-3" onClick={() => createCategory().catch(console.error)}>Add category</button></div><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New brand" value={brandName} onChange={(e) => setBrandName(e.target.value)} /><button className="rounded border px-3" onClick={() => createBrand().catch(console.error)}>Add brand</button></div></div>
+      <div className="mb-4 grid gap-2 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2"><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New category" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} /><button type="button" className="rounded border px-3" onClick={() => void createCategory()}>Add category</button></div><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New brand" value={brandName} onChange={(e) => setBrandName(e.target.value)} /><button type="button" className="rounded border px-3" onClick={() => void createBrand()}>Add brand</button></div></div>
+      {message ? <p className="mb-4 rounded-xl border border-[var(--line)] bg-white px-4 py-3 text-sm text-[var(--navy)]">{message}</p> : null}
       <form onSubmit={onCreate} className="mb-6 grid grid-cols-6 gap-2 rounded-xl bg-white p-4 shadow-sm">
         <input className="rounded border px-2 py-1" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} />
@@ -116,7 +145,7 @@ export default function ProductsPage() {
         <input className="rounded border px-2 py-1" placeholder="Attribute name e.g. Colour" value={attributeName} onChange={(e) => setAttributeName(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Values comma-separated" value={attributeValues} onChange={(e) => setAttributeValues(e.target.value)} />
         <div className="col-span-6 space-y-2 rounded border p-2"><div className="flex items-center justify-between text-sm font-semibold"><span>Variants</span><button type="button" className="rounded border px-2 py-1" onClick={() => setVariants((current) => [...current, { sku: '', variantName: '', barcode: '', attributeValues: '' }])}>Add variant</button></div>{variants.map((variant, index) => <div key={index} className="grid gap-2 sm:grid-cols-4"><input required className="rounded border px-2 py-1" placeholder="SKU" value={variant.sku} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sku: e.target.value } : item))} /><input required className="rounded border px-2 py-1" placeholder="Variant e.g. Medium / Black" value={variant.variantName} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, variantName: e.target.value } : item))} /><input className="rounded border px-2 py-1" placeholder="Barcode" value={variant.barcode} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, barcode: e.target.value } : item))} /><input className="rounded border px-2 py-1" placeholder="Attribute values" value={variant.attributeValues} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, attributeValues: e.target.value } : item))} /></div>)}</div>
-        <button className="col-span-6 rounded bg-accent py-2 text-white">Create product</button>
+        <button disabled={saving} className="col-span-6 rounded bg-accent py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : 'Create product'}</button>
       </form>
       <table className="w-full overflow-hidden rounded-xl bg-white text-left text-sm shadow-sm">
         <thead className="bg-slate-100">
