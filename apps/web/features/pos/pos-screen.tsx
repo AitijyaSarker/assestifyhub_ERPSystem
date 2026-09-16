@@ -69,10 +69,10 @@ export function PosScreen() {
   const change = Math.max(0, Number(tendered || 0) - grandTotal);
 
   function addLine(line: Parameters<typeof cart.add>[0]) {
-    const available = line.availableStock == null ? null : Number(line.availableStock);
+    const available = line.availableStock == null ? 0 : Number(line.availableStock);
     const existing = cart.lines.find((item) => item.productVariantId === line.productVariantId);
     const nextQuantity = Number(existing?.quantity ?? 0) + Number(line.quantity);
-    if (available != null && nextQuantity > available) {
+    if (nextQuantity > available) {
       setMessage(`Only ${available.toFixed(3)} units of ${line.name} are available`);
       return;
     }
@@ -201,7 +201,7 @@ export function PosScreen() {
             onKeyDown={scan}
           />
         </div>
-        {products.length ? <div className="mb-3 grid gap-2 rounded-xl bg-white p-3 shadow-sm sm:grid-cols-2">{products.flatMap((product) => product.variants.map((variant) => <button key={variant.id} className="rounded-lg border p-3 text-left hover:border-accent" onClick={() => { addLine({ productVariantId: variant.id, name: `${product.name} ${variant.variantName}`, sku: variant.sku, quantity: '1.000', unitPrice: variant.priceOverride ?? product.sellingPrice, discount: product.discount, taxRate: product.taxRate, availableStock: inventory[variant.id], barcode: variant.barcodes[0]?.value }); setQ(''); setProducts([]); searchRef.current?.focus(); }}><strong>{product.name}</strong><span className="block text-xs text-slate-500">{variant.variantName} · {variant.sku} · {formatCurrency(variant.priceOverride ?? product.sellingPrice)} · stock {inventory[variant.id] ?? '0.000'}</span></button>))}</div> : null}
+        {products.length ? <div className="mb-3 grid gap-2 rounded-xl bg-white p-3 shadow-sm sm:grid-cols-2">{products.flatMap((product) => product.variants.map((variant) => { const stock = Number(inventory[variant.id] ?? 0); const price = Number(variant.priceOverride ?? product.sellingPrice); const unavailable = stock <= 0 || price <= 0; return <button key={variant.id} disabled={unavailable} className="rounded-lg border p-3 text-left hover:border-accent disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { addLine({ productVariantId: variant.id, name: `${product.name} ${variant.variantName}`, sku: variant.sku, quantity: '1.000', unitPrice: variant.priceOverride ?? product.sellingPrice, discount: product.discount, taxRate: product.taxRate, availableStock: inventory[variant.id], barcode: variant.barcodes[0]?.value }); setQ(''); setProducts([]); searchRef.current?.focus(); }}><strong>{product.name}</strong><span className="block text-xs text-slate-500">{variant.variantName} · {variant.sku} · {price > 0 ? formatCurrency(String(price)) : 'Price not set'} · {stock > 0 ? `stock ${stock.toFixed(3)}` : 'Out of stock'}</span></button>; }))}</div> : null}
         <table className="w-full rounded-xl bg-white text-sm shadow-sm">
           <thead className="bg-slate-100">
             <tr>
@@ -249,7 +249,7 @@ export function PosScreen() {
           onChange={(e) => setTendered(e.target.value)}
         />
         <div className="mt-4 space-y-1 border-t pt-3 text-sm"><div className="flex justify-between"><span>Subtotal</span><strong>{formatCurrency(totals.subtotal.toFixed(2))}</strong></div><div className="flex justify-between"><span>Discount</span><strong>-{formatCurrency(totals.discount.toFixed(2))}</strong></div><div className="flex justify-between"><span>Tax</span><strong>{formatCurrency(totals.tax.toFixed(2))}</strong></div><div className="flex justify-between text-lg"><span>Total</span><strong>{formatCurrency(grandTotal.toFixed(2))}</strong></div><div className="flex justify-between text-emerald-700"><span>Change</span><strong>{formatCurrency(change.toFixed(2))}</strong></div></div>
-        <button className="mt-4 w-full rounded-md bg-accent py-3 text-white" onClick={() => void checkout()}>
+        <button disabled={!cart.lines.length || cart.lines.some((line) => Number(line.unitPrice) <= 0 || (line.availableStock != null && Number(line.quantity) > Number(line.availableStock)))} className="mt-4 w-full rounded-md bg-accent py-3 text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void checkout()}>
           Complete sale (F2)
         </button>
         {lastReceipt ? <button className="mt-2 w-full rounded-md border py-2" onClick={() => setShowReceipt(true)}>View / print last receipt</button> : null}

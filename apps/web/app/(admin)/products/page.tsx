@@ -28,8 +28,8 @@ export default function ProductsPage() {
   const [brandId, setBrandId] = useState('');
   const [categoryName, setCategoryName] = useState('');
   const [brandName, setBrandName] = useState('');
-  const [price, setPrice] = useState('0.00');
-  const [cost, setCost] = useState('0.00');
+  const [price, setPrice] = useState('');
+  const [cost, setCost] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [attributeName, setAttributeName] = useState('');
@@ -109,8 +109,8 @@ export default function ProductsPage() {
         <input className="rounded border px-2 py-1" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} />
         <select className="rounded border px-2 py-1" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}><option value="">Category</option>{categories.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
         <select className="rounded border px-2 py-1" value={brandId} onChange={(e) => setBrandId(e.target.value)}><option value="">Brand</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
-        <input className="rounded border px-2 py-1" placeholder="Cost" value={cost} onChange={(e) => setCost(e.target.value)} />
-        <input className="rounded border px-2 py-1" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} />
+        <input required min="0.01" step="0.01" type="number" className="rounded border px-2 py-1" placeholder="Cost" value={cost} onChange={(e) => setCost(e.target.value)} />
+        <input required min="0.01" step="0.01" type="number" className="rounded border px-2 py-1" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
         <input className="rounded border px-2 py-1" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
         <input className="rounded border px-2 py-1" placeholder="Attribute name e.g. Colour" value={attributeName} onChange={(e) => setAttributeName(e.target.value)} />

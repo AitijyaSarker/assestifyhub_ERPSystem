@@ -107,10 +107,10 @@ export class CreateProductDto {
   @IsString()
   description?: string;
 
-  @Matches(/^\d+(\.\d{1,2})?$/)
+  @Matches(/^(?!0+(?:\.0{1,2})?$)\d+(\.\d{1,2})?$/)
   purchasePrice!: string;
 
-  @Matches(/^\d+(\.\d{1,2})?$/)
+  @Matches(/^(?!0+(?:\.0{1,2})?$)\d+(\.\d{1,2})?$/)
   sellingPrice!: string;
 
   @IsOptional()
