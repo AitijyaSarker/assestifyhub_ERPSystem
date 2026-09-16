@@ -26,6 +26,8 @@ export function PosScreen() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [lastReceipt, setLastReceipt] = useState('');
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
   const [inventory, setInventory] = useState<Record<string, string>>({});
   const cart = useCart();
@@ -42,6 +44,10 @@ export function PosScreen() {
     });
     api<Customer[]>('/customers').then((r) => setCustomers(r.data ?? [])).catch(() => undefined);
   }, []);
+
+  useEffect(() => () => {
+    if (receiptUrl) URL.revokeObjectURL(receiptUrl);
+  }, [receiptUrl]);
 
   useEffect(() => {
     if (!cart.shopId) return;
@@ -61,6 +67,18 @@ export function PosScreen() {
   }, { subtotal: 0, discount: 0, tax: 0 });
   const grandTotal = totals.subtotal - totals.discount + totals.tax;
   const change = Math.max(0, Number(tendered || 0) - grandTotal);
+
+  function addLine(line: Parameters<typeof cart.add>[0]) {
+    const available = line.availableStock == null ? null : Number(line.availableStock);
+    const existing = cart.lines.find((item) => item.productVariantId === line.productVariantId);
+    const nextQuantity = Number(existing?.quantity ?? 0) + Number(line.quantity);
+    if (available != null && nextQuantity > available) {
+      setMessage(`Only ${available.toFixed(3)} units of ${line.name} are available`);
+      return;
+    }
+    cart.add(line);
+    setMessage(null);
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -103,7 +121,7 @@ export function PosScreen() {
         product: { name: string; sellingPrice: string };
       }>(`/products/barcode/${encodeURIComponent(value)}`);
       const v = res.data;
-      cart.add({
+      addLine({
         productVariantId: v.id,
         name: `${v.product.name} ${v.variantName}`,
         sku: v.sku,
@@ -146,7 +164,9 @@ export function PosScreen() {
         const blob = new Blob([Uint8Array.from(atob(res.data.receiptPdfBase64), (c) => c.charCodeAt(0))], {
           type: 'application/pdf',
         });
-        window.open(URL.createObjectURL(blob));
+        if (receiptUrl) URL.revokeObjectURL(receiptUrl);
+        setReceiptUrl(URL.createObjectURL(blob));
+        setShowReceipt(true);
       }
       cart.clear();
       setTendered('');
@@ -181,7 +201,7 @@ export function PosScreen() {
             onKeyDown={scan}
           />
         </div>
-        {products.length ? <div className="mb-3 grid gap-2 rounded-xl bg-white p-3 shadow-sm sm:grid-cols-2">{products.flatMap((product) => product.variants.map((variant) => <button key={variant.id} className="rounded-lg border p-3 text-left hover:border-accent" onClick={() => { cart.add({ productVariantId: variant.id, name: `${product.name} ${variant.variantName}`, sku: variant.sku, quantity: '1.000', unitPrice: variant.priceOverride ?? product.sellingPrice, discount: product.discount, taxRate: product.taxRate, availableStock: inventory[variant.id], barcode: variant.barcodes[0]?.value }); setQ(''); setProducts([]); searchRef.current?.focus(); }}><strong>{product.name}</strong><span className="block text-xs text-slate-500">{variant.variantName} · {variant.sku} · {formatCurrency(variant.priceOverride ?? product.sellingPrice)} · stock {inventory[variant.id] ?? '0.000'}</span></button>))}</div> : null}
+        {products.length ? <div className="mb-3 grid gap-2 rounded-xl bg-white p-3 shadow-sm sm:grid-cols-2">{products.flatMap((product) => product.variants.map((variant) => <button key={variant.id} className="rounded-lg border p-3 text-left hover:border-accent" onClick={() => { addLine({ productVariantId: variant.id, name: `${product.name} ${variant.variantName}`, sku: variant.sku, quantity: '1.000', unitPrice: variant.priceOverride ?? product.sellingPrice, discount: product.discount, taxRate: product.taxRate, availableStock: inventory[variant.id], barcode: variant.barcodes[0]?.value }); setQ(''); setProducts([]); searchRef.current?.focus(); }}><strong>{product.name}</strong><span className="block text-xs text-slate-500">{variant.variantName} · {variant.sku} · {formatCurrency(variant.priceOverride ?? product.sellingPrice)} · stock {inventory[variant.id] ?? '0.000'}</span></button>))}</div> : null}
         <table className="w-full rounded-xl bg-white text-sm shadow-sm">
           <thead className="bg-slate-100">
             <tr>
@@ -198,7 +218,7 @@ export function PosScreen() {
                   {l.name}
                   <div className="text-xs text-slate-500">{l.sku}</div>
                 </td>
-                <td className="text-center"><button onClick={() => cart.decrement(l.productVariantId)}>-</button><span className="px-2">{l.quantity}</span><button onClick={() => cart.increment(l.productVariantId)}>+</button></td>
+                <td className="text-center"><button onClick={() => cart.decrement(l.productVariantId)}>-</button><span className="px-2">{l.quantity}</span><button disabled={l.availableStock != null && Number(l.quantity) >= Number(l.availableStock)} className="disabled:cursor-not-allowed disabled:opacity-40" onClick={() => cart.increment(l.productVariantId)}>+</button></td>
                 <td className="text-center">{formatCurrency(l.unitPrice)}</td>
                 <td>
                   <button onClick={() => cart.remove(l.productVariantId)}>Remove</button>
@@ -232,9 +252,24 @@ export function PosScreen() {
         <button className="mt-4 w-full rounded-md bg-accent py-3 text-white" onClick={() => void checkout()}>
           Complete sale (F2)
         </button>
-        {lastReceipt ? <button className="mt-2 w-full rounded-md border py-2" onClick={() => { const bytes = Uint8Array.from(atob(lastReceipt), (c) => c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))); }}>Print last receipt</button> : null}
+        {lastReceipt ? <button className="mt-2 w-full rounded-md border py-2" onClick={() => setShowReceipt(true)}>View / print last receipt</button> : null}
         {message ? <p className="mt-3 text-sm">{message}</p> : null}
       </aside>
+      {showReceipt && receiptUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="flex h-[90vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b p-4">
+              <strong>Receipt ready</strong>
+              <div className="flex gap-2">
+                <button className="rounded-md bg-accent px-3 py-2 text-sm text-white" onClick={() => { const frame = document.getElementById('receipt-preview') as HTMLIFrameElement | null; frame?.contentWindow?.print(); }}>Print receipt</button>
+                <a className="rounded-md border px-3 py-2 text-sm" href={receiptUrl} download="receipt.pdf">Download PDF</a>
+                <button className="rounded-md border px-3 py-2 text-sm" onClick={() => setShowReceipt(false)}>Close</button>
+              </div>
+            </div>
+            <iframe id="receipt-preview" title="Printable receipt" src={receiptUrl} className="min-h-0 flex-1" />
+          </div>
+        </div>
+      ) : null}
       <ConfirmDialog
         open={confirmClear}
         title="Clear the cart?"
