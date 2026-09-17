@@ -11,6 +11,7 @@
     "dev:api": "npm run start:dev -w @erp/api",
     "dev:web": "npm run dev -w @erp/web",
     "build": "npm run build --workspaces --if-present",
+    "start": "npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && npx ts-node -T apps/api/prisma/seed.ts && node apps/api/dist/apps/api/src/main.js",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:api": "npm run test -w @erp/api",
