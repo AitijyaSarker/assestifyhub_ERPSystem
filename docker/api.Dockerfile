@@ -25,5 +25,5 @@ COPY --from=build /app/apps/api/tsconfig.json ./apps/api/tsconfig.json
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/package.json ./package.json
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && npx ts-node -T --project apps/api/tsconfig.json apps/api/prisma/seed.ts && node apps/api/dist/apps/api/src/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && npx ts-node -T apps/api/prisma/seed.ts && node apps/api/dist/apps/api/src/main.js"]
 

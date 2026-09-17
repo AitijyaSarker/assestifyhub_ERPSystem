@@ -1,6 +1,56 @@
 import { PrismaClient, Currency } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { ALL_PERMISSION_KEYS, SHOP_USER_PERMISSIONS } from '@erp/shared-types';
+const ALL_PERMISSION_KEYS = [
+  'products.view',
+  'products.create',
+  'products.update',
+  'products.delete',
+  'products.archive',
+  'categories.manage',
+  'brands.manage',
+  'suppliers.manage',
+  'inventory.view',
+  'inventory.add',
+  'inventory.adjust',
+  'inventory.transfer.request',
+  'inventory.transfer.approve',
+  'inventory.transfer.dispatch',
+  'inventory.transfer.receive',
+  'purchases.view',
+  'purchases.create',
+  'sales.create',
+  'sales.view',
+  'sales.view.own_shop',
+  'sales.void',
+  'returns.create',
+  'returns.view',
+  'returns.approve',
+  'returns.reject',
+  'refunds.process',
+  'exchanges.process',
+  'customers.manage',
+  'payments.view',
+  'payments.configure',
+  'reports.view',
+  'reports.export',
+  'expenses.manage',
+  'users.manage',
+  'shops.manage',
+  'settings.manage',
+  'audit.view',
+  'security.manage',
+  'backup.manage',
+  'notifications.manage',
+];
+
+const SHOP_USER_PERMISSIONS = [
+  'sales.create',
+  'sales.view.own_shop',
+  'inventory.view',
+  'returns.create',
+  'customers.manage',
+  'notifications.manage',
+];
 
 const prisma = new PrismaClient();
 
