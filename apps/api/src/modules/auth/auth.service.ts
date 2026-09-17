@@ -256,10 +256,11 @@ export class AuthService {
   }
 
   private setRefreshCookie(res: Response, token: string, expiresAt: Date) {
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refresh_token', token, {
       httpOnly: true,
-      secure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
-      sameSite: process.env.COOKIE_SAMESITE === 'lax' ? 'lax' : 'strict',
+      secure: isProd || process.env.COOKIE_SECURE === 'true',
+      sameSite: process.env.COOKIE_SAMESITE === 'strict' ? 'strict' : (isProd ? 'none' : 'lax'),
       expires: expiresAt,
       path: '/api/v1/auth',
     });
