@@ -61,8 +61,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    profiles:
-      - with-api
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

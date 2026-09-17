@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node dist/apps/api/src/main.js",
-    "start:dev": "nest build --watch",
+    "start:dev": "nest start --watch",
     "build": "npm run build -w @erp/shared-types && nest build",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "test": "jest --runInBand",

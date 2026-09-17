@@ -100,6 +100,18 @@ export default function ProductsPage() {
     window.open(url);
   }
 
+  async function removeProduct(product: Product) {
+    if (!window.confirm(`Delete product "${product.name}"? It will be archived and removed from the active catalog.`)) return;
+    setMessage(null);
+    try {
+      await api(`/products/${product.id}/archive`, { method: 'POST' });
+      await load();
+      setMessage(`Product "${product.name}" deleted.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  }
+
   async function createCategory() {
     if (!categoryName.trim()) return;
     setMessage(null);
@@ -164,10 +176,15 @@ export default function ProductsPage() {
               <td>{p.productCode}</td>
               <td>{p.variants[0]?.sku}</td>
               <td>{formatCurrency(p.sellingPrice)}</td>
-              <td>
-                <button className="text-accent" onClick={() => labels(p.id)}>
-                  Labels PDF
-                </button>
+              <td className="p-3">
+                <div className="flex items-center gap-3">
+                  <button type="button" className="text-accent" onClick={() => void labels(p.id)}>
+                    Labels PDF
+                  </button>
+                  <button type="button" className="text-red-600" onClick={() => void removeProduct(p)}>
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
