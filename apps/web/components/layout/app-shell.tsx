@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const { activeCurrency } = useCurrencyPreferences();
-  const { shops, activeShopId, activeShop, isAllShops, isSuperAdmin, setActiveShopId } = useActiveShop();
+  const { shops, accessibleShops, activeShopId, activeShop, isAllShops, isSuperAdmin, setActiveShopId } = useActiveShop();
   const [links, setLinks] = useState<readonly (readonly [string, string])[]>(adminLinks);
 
   useEffect(() => {
@@ -105,7 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {isSuperAdmin && (
               <option value="ALL">All Shops (Combined)</option>
             )}
-            {shops.map((s) => (
+            {(isSuperAdmin ? shops : accessibleShops).map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} ({s.code})
               </option>

@@ -16,25 +16,25 @@ export class TransfersController {
   }
 
   @Post()
-  @RequirePermissions('inventory.transfer.request')
+  @RequirePermissions('inventory.transfer.request', 'inventory.view')
   request(@CurrentUser() user: AuthUser, @Body() dto: CreateTransferDto) {
     return this.transfers.request(user, dto);
   }
 
   @Post(':id/approve')
-  @RequirePermissions('inventory.transfer.approve')
+  @RequirePermissions('inventory.transfer.approve', 'inventory.view')
   approve(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.transfers.approve(user, id);
   }
 
   @Post(':id/dispatch')
-  @RequirePermissions('inventory.transfer.dispatch')
+  @RequirePermissions('inventory.transfer.dispatch', 'inventory.view')
   dispatch(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.transfers.dispatch(user, id);
   }
 
   @Post(':id/receive')
-  @RequirePermissions('inventory.transfer.receive')
+  @RequirePermissions('inventory.transfer.receive', 'inventory.view')
   receive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.transfers.receive(user, id);
   }

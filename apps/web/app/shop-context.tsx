@@ -13,6 +13,7 @@ export type Shop = {
 
 export type ShopContextValue = {
   shops: Shop[];
+  accessibleShops: Shop[];
   activeShopId: string | null;
   activeShop: Shop | null;
   isAllShops: boolean;
@@ -27,6 +28,7 @@ const ShopContext = createContext<ShopContextValue | null>(null);
 export function ShopProvider({ children }: { children: React.ReactNode }) {
   const [shops, setShops] = useState<Shop[]>([]);
   const [activeShopId, setActiveShopIdState] = useState<string | null>(null);
+  const [userShopIds, setUserShopIds] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,22 +42,39 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const roles = JSON.parse(localStorage.getItem('roles') ?? '[]') as string[];
-      const superAdmin = roles.includes('SUPER_ADMIN');
+      let superAdmin = false;
+      let myShopIds: string[] = [];
+
+      try {
+        const meRes = await api<{ id: string; roles: string[]; shopIds: string[] }>('/auth/me');
+        if (meRes.data) {
+          superAdmin = (meRes.data.roles ?? []).includes('SUPER_ADMIN');
+          myShopIds = meRes.data.shopIds ?? [];
+          localStorage.setItem('roles', JSON.stringify(meRes.data.roles ?? []));
+          localStorage.setItem('shopIds', JSON.stringify(myShopIds));
+        }
+      } catch {
+        const roles = JSON.parse(localStorage.getItem('roles') ?? '[]') as string[];
+        superAdmin = roles.includes('SUPER_ADMIN');
+        myShopIds = JSON.parse(localStorage.getItem('shopIds') ?? '[]') as string[];
+      }
+
       setIsSuperAdmin(superAdmin);
+      setUserShopIds(myShopIds);
 
       const res = await api<Shop[]>('/shops');
       const loaded = res.data ?? [];
       setShops(loaded);
 
-      const userShopIds = JSON.parse(localStorage.getItem('shopIds') ?? '[]') as string[];
       const saved = localStorage.getItem('erp-active-shop');
 
-      if (!superAdmin && userShopIds.length > 0) {
-        const assignedShop = loaded.find((s) => userShopIds.includes(s.id)) ?? loaded[0];
-        if (assignedShop) {
-          setActiveShopIdState(assignedShop.id);
-          localStorage.setItem('erp-active-shop', assignedShop.id);
+      if (!superAdmin && myShopIds.length > 0) {
+        const matchingShop = (saved && myShopIds.includes(saved) && loaded.find((s) => s.id === saved))
+          || loaded.find((s) => myShopIds.includes(s.id))
+          || loaded[0];
+        if (matchingShop) {
+          setActiveShopIdState(matchingShop.id);
+          localStorage.setItem('erp-active-shop', matchingShop.id);
           return;
         }
       }
@@ -89,6 +108,13 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const accessibleShops = useMemo(() => {
+    if (isSuperAdmin || userShopIds.length === 0) {
+      return shops;
+    }
+    return shops.filter((s) => userShopIds.includes(s.id));
+  }, [shops, isSuperAdmin, userShopIds]);
+
   const activeShop = useMemo(() => {
     if (!activeShopId) return null;
     return shops.find((s) => s.id === activeShopId) ?? null;
@@ -101,6 +127,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<ShopContextValue>(
     () => ({
       shops,
+      accessibleShops,
       activeShopId,
       activeShop,
       isAllShops,
@@ -109,7 +136,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       setActiveShopId,
       refreshShops,
     }),
-    [shops, activeShopId, activeShop, isAllShops, isSuperAdmin, isLoading, setActiveShopId, refreshShops]
+    [shops, accessibleShops, activeShopId, activeShop, isAllShops, isSuperAdmin, isLoading, setActiveShopId, refreshShops]
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;

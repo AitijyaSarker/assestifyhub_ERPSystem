@@ -5,7 +5,7 @@ import { HttpStatus } from '@nestjs/common';
 
 export function assertShopAccess(user: AuthUser, shopId: string): void {
   if (user.roles.includes('SUPER_ADMIN')) return;
-  if (!user.shopIds.includes(shopId)) {
+  if (user.shopIds.length > 0 && !user.shopIds.includes(shopId)) {
     throw new AppError(ERROR_CODES.SHOP_ACCESS_DENIED, 'Shop access denied', HttpStatus.FORBIDDEN);
   }
 }

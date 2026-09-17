@@ -24,7 +24,7 @@ export class ProductsController {
   ) {}
 
   @Get('categories')
-  @RequirePermissions('products.view')
+  @RequirePermissions('products.view', 'sales.create', 'inventory.view')
   categories() {
     return this.products.categories();
   }
@@ -42,7 +42,7 @@ export class ProductsController {
   }
 
   @Get('brands')
-  @RequirePermissions('products.view')
+  @RequirePermissions('products.view', 'sales.create', 'inventory.view')
   brands() {
     return this.products.brands();
   }
@@ -60,7 +60,7 @@ export class ProductsController {
   }
 
   @Get('products')
-  @RequirePermissions('products.view')
+  @RequirePermissions('products.view', 'sales.create', 'inventory.view')
   list(@Query('search') search?: string) {
     return this.products.list(search);
   }
@@ -72,7 +72,7 @@ export class ProductsController {
   }
 
   @Get('products/:id')
-  @RequirePermissions('products.view')
+  @RequirePermissions('products.view', 'sales.create', 'inventory.view')
   get(@Param('id') id: string) {
     return this.products.get(id);
   }

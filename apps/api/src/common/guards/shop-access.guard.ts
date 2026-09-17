@@ -34,7 +34,7 @@ export class ShopAccessGuard implements CanActivate {
       (req.body?.shopId as string | undefined);
 
     if (!shopId) return true;
-    if (!user.shopIds.includes(shopId)) {
+    if (user.shopIds.length > 0 && !user.shopIds.includes(shopId)) {
       throw new AppError(ERROR_CODES.SHOP_ACCESS_DENIED, 'Shop access denied', HttpStatus.FORBIDDEN);
     }
     return true;
