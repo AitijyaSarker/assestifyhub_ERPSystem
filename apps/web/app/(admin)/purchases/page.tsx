@@ -7,7 +7,17 @@ import { api } from '@/lib/api';
 type ShopOption = { id: string; name: string };
 type SupplierOption = { id: string; name: string };
 type ProductWithVariants = { id: string; name: string; variants: { id: string; sku: string; variantName: string }[] };
-type PurchaseRow = { id: string; referenceNo: string; totalAmount: string; shop?: { name: string }; supplier?: { name: string } };
+type PurchaseItemRow = { id: string; productVariantId: string; quantity: string; unitPrice: string; total: string };
+type PurchaseReceiptRow = { id: string; receivedAt: string; receivedBy?: string };
+type PurchaseRow = {
+  id: string;
+  referenceNo: string;
+  totalAmount: string;
+  shop?: { name: string };
+  supplier?: { name: string };
+  items?: PurchaseItemRow[];
+  receipts?: PurchaseReceiptRow[];
+};
 
 export default function PurchasesPage() {
   const [shops, setShops] = useState<ShopOption[]>([]);
@@ -27,6 +37,30 @@ export default function PurchasesPage() {
   async function loadPurchases() {
     const list = await api<PurchaseRow[]>('/purchases');
     setRows(list.data ?? []);
+  }
+
+  async function receiveExisting(p: PurchaseRow) {
+    if (!p.items || p.items.length === 0) return;
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await api(`/purchases/${p.id}/receive`, {
+        method: 'POST',
+        body: JSON.stringify({
+          items: p.items.map((i) => ({
+            productVariantId: i.productVariantId,
+            quantity: parseFloat(i.quantity).toFixed(3),
+          })),
+        }),
+      });
+      setMessage(`Stock for purchase "${p.referenceNo}" received successfully into inventory!`);
+      await loadPurchases();
+    } catch (err) {
+      setError((err as Error).message || `Failed to receive purchase ${p.referenceNo}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -227,15 +261,48 @@ export default function PurchasesPage() {
           <p className="text-sm text-slate-400">No purchases recorded yet.</p>
         ) : (
           <ul className="divide-y text-sm">
-            {rows.map((r) => (
-              <li key={r.id} className="flex items-center justify-between py-2.5">
-                <div>
-                  <span className="font-medium text-slate-800">{r.referenceNo}</span>
-                  {r.supplier && <span className="ml-2 text-xs text-slate-400">({r.supplier.name})</span>}
-                </div>
-                <div className="font-semibold text-slate-700">{r.totalAmount}</div>
-              </li>
-            ))}
+            {rows.map((r) => {
+              const isReceived = Boolean(r.receipts && r.receipts.length > 0);
+              const totalQty = r.items?.reduce((sum, item) => sum + parseFloat(item.quantity || '0'), 0) ?? 0;
+              return (
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800">{r.referenceNo}</span>
+                      {r.supplier && <span className="text-xs text-slate-500">({r.supplier.name})</span>}
+                      {r.shop && <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{r.shop.name}</span>}
+                    </div>
+                    {totalQty > 0 && (
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Total Quantity: <span className="font-medium text-slate-700">{totalQty} units</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-slate-800">{r.totalAmount} BDT</span>
+                    {isReceived ? (
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        ✓ In Inventory
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                          Pending Receipt
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => receiveExisting(r)}
+                          disabled={saving}
+                          className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          Receive Stock
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
