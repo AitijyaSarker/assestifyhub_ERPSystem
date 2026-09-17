@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 
-const shopPaths = new Set(['/dashboard', '/pos', '/sales', '/returns', '/notifications', '/account', '/security']);
+const shopPaths = new Set(['/dashboard', '/pos', '/sales', '/inventory', '/transfers', '/returns', '/notifications', '/account', '/security']);
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();

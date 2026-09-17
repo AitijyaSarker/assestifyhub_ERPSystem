@@ -20,17 +20,38 @@ export class TransfersService {
     private readonly audit: AuditService,
   ) {}
 
-  list(user: AuthUser) {
+  async list(user: AuthUser) {
     const shopFilter = user.roles.includes('SUPER_ADMIN')
       ? undefined
       : {
           OR: [{ sourceShopId: { in: user.shopIds } }, { destShopId: { in: user.shopIds } }],
         };
-    return this.prisma.stockTransfer.findMany({
+    const transfers = await this.prisma.stockTransfer.findMany({
       where: shopFilter,
-      include: { items: true, sourceShop: true, destShop: true },
+      include: {
+        items: true,
+        sourceShop: true,
+        destShop: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
+
+    const variantIds = [...new Set(transfers.flatMap((t) => t.items.map((i) => i.productVariantId)))];
+    const variants = variantIds.length
+      ? await this.prisma.productVariant.findMany({
+          where: { id: { in: variantIds } },
+          include: { product: true },
+        })
+      : [];
+    const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+    return transfers.map((t) => ({
+      ...t,
+      items: t.items.map((item) => ({
+        ...item,
+        variant: variantMap.get(item.productVariantId),
+      })),
+    }));
   }
 
   async request(user: AuthUser, dto: CreateTransferDto) {
@@ -40,7 +61,9 @@ export class TransfersService {
     if (!dto.items.length || dto.items.some((item) => qty(item.quantity).lte(0))) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Transfer quantities must be positive');
     }
-    assertShopAccess(user, dto.sourceShopId);
+    if (!user.roles.includes('SUPER_ADMIN') && !user.shopIds.includes(dto.sourceShopId) && !user.shopIds.includes(dto.destShopId)) {
+      throw new AppError(ERROR_CODES.SHOP_ACCESS_DENIED, 'Shop access denied', HttpStatus.FORBIDDEN);
+    }
     const count = await this.prisma.stockTransfer.count();
     const row = await this.prisma.stockTransfer.create({
       data: {

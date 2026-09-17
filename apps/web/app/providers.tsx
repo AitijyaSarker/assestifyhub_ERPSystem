@@ -3,6 +3,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
+import { ShopProvider, useActiveShop } from './shop-context';
+
+export { useActiveShop };
 
 export type CurrencyCode = 'BDT' | 'GBP';
 
@@ -65,7 +68,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={client}>
-      <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>
+      <CurrencyContext.Provider value={value}>
+        <ShopProvider>{children}</ShopProvider>
+      </CurrencyContext.Provider>
     </QueryClientProvider>
   );
 }

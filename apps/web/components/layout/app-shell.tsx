@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { useCurrencyPreferences } from '@/app/providers';
+import { useCurrencyPreferences, useActiveShop } from '@/app/providers';
 
 const adminLinks = [
   ['/dashboard', 'Dashboard'],
@@ -30,6 +30,8 @@ const shopLinks = [
   ['/dashboard', 'Dashboard'],
   ['/pos', 'POS'],
   ['/sales', 'Sales'],
+  ['/inventory', 'Inventory'],
+  ['/transfers', 'Transfers'],
   ['/returns', 'Returns'],
   ['/notifications', 'Notifications'],
   ['/account', 'My Account'],
@@ -40,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const { activeCurrency } = useCurrencyPreferences();
+  const { shops, activeShopId, activeShop, isAllShops, isSuperAdmin, setActiveShopId } = useActiveShop();
   const [links, setLinks] = useState<readonly (readonly [string, string])[]>(adminLinks);
 
   useEffect(() => {
@@ -68,7 +71,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="block text-[10px] uppercase tracking-[0.18em] text-white/45">Operations</span>
             </span>
           </Link>
-          <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-white/45 lg:hidden">HQ01</span>
+          <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-white/70 lg:hidden">
+            {activeShop ? activeShop.code : isAllShops ? 'ALL' : 'SHOP'}
+          </span>
         </div>
         <div className="mb-3 hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35 lg:block">Workspace</div>
         <nav className="flex gap-1 overflow-x-auto pb-1 text-sm lg:flex-col lg:overflow-visible">
@@ -82,10 +87,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="mt-10 hidden rounded-2xl border border-white/10 bg-white/5 p-4 lg:block">
-          <div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold">Headquarters</span><span className="h-2 w-2 rounded-full bg-[#7ed7a5]" /></div>
-          <p className="text-xs leading-5 text-white/45">All systems operational. Your inventory is synced.</p>
+
+        {/* Dynamic Shop Selector & Status */}
+        <div className="mt-8 hidden rounded-2xl border border-white/10 bg-white/5 p-3.5 lg:block">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/50">Current Shop</span>
+            <span className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Live
+            </span>
+          </div>
+          <select
+            className="w-full rounded-lg border border-white/20 bg-slate-800/80 px-2.5 py-1.5 text-xs font-medium text-white outline-none transition focus:border-white/50"
+            value={isAllShops ? 'ALL' : (activeShopId ?? '')}
+            onChange={(e) => setActiveShopId(e.target.value === 'ALL' ? null : e.target.value)}
+          >
+            {isSuperAdmin && (
+              <option value="ALL">All Shops (Combined)</option>
+            )}
+            {shops.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.code})
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-[11px] leading-4 text-white/45">
+            {activeShop
+              ? `Operating in ${activeShop.name} (${activeShop.code}).`
+              : isAllShops
+              ? 'Viewing cross-network aggregated transactions.'
+              : 'Select a shop to begin transactions.'}
+          </p>
         </div>
+
         <div className="mt-6 flex flex-col gap-3">
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] uppercase tracking-[0.2em] text-white/60">
             {activeCurrency}

@@ -47,7 +47,12 @@ const SHOP_USER_PERMISSIONS = [
   'sales.create',
   'sales.view.own_shop',
   'inventory.view',
+  'inventory.transfer.request',
+  'inventory.transfer.approve',
+  'inventory.transfer.dispatch',
+  'inventory.transfer.receive',
   'returns.create',
+  'returns.view',
   'customers.manage',
   'notifications.manage',
 ];

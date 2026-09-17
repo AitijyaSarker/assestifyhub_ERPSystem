@@ -30,7 +30,7 @@ export class InventoryController {
       where: ids.length ? { shopId: { in: ids } } : undefined,
       orderBy: { createdAt: 'desc' },
       take: 200,
-      include: { variant: { include: { product: true } } },
+      include: { variant: { include: { product: true } }, shop: true },
     });
   }
 

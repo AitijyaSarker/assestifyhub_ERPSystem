@@ -38,12 +38,13 @@ export default function LoginPage() {
       const captchaToken = siteKey && captchaReady && captcha
         ? await new Promise<string | undefined>((resolve) => captcha.ready(() => captcha.execute(siteKey, { action: 'login' }).then(resolve)))
         : undefined;
-      const res = await api<{ accessToken: string; user: { roles: string[] } }>('/auth/login', {
+      const res = await api<{ accessToken: string; user: { roles: string[]; shopIds?: string[] } }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password, otpCode: otpCode || undefined, backupCode: backupCode || undefined, captchaToken, deviceFingerprint: deviceFingerprint() }),
       });
       localStorage.setItem('accessToken', res.data.accessToken);
       localStorage.setItem('roles', JSON.stringify(res.data.user.roles));
+      localStorage.setItem('shopIds', JSON.stringify(res.data.user.shopIds ?? []));
       router.push(res.data.user.roles.includes('SUPER_ADMIN') ? '/dashboard' : '/pos');
     } catch (err) {
       setError((err as Error).message);
@@ -55,9 +56,10 @@ export default function LoginPage() {
     try {
       const options = await api<PublicKeyCredentialRequestOptionsJSON>('/auth/passkey/options', { method: 'POST', body: JSON.stringify({ email: email || undefined }) });
       const response = await startAuthentication({ optionsJSON: options.data });
-      const result = await api<{ accessToken: string; user: { roles: string[] } }>('/auth/passkey/verify', { method: 'POST', body: JSON.stringify({ response, deviceFingerprint: deviceFingerprint() }) });
+      const result = await api<{ accessToken: string; user: { roles: string[]; shopIds?: string[] } }>('/auth/passkey/verify', { method: 'POST', body: JSON.stringify({ response, deviceFingerprint: deviceFingerprint() }) });
       localStorage.setItem('accessToken', result.data.accessToken);
       localStorage.setItem('roles', JSON.stringify(result.data.user.roles));
+      localStorage.setItem('shopIds', JSON.stringify(result.data.user.shopIds ?? []));
       router.push(result.data.user.roles.includes('SUPER_ADMIN') ? '/dashboard' : '/pos');
     } catch (err) {
       setError((err as Error).message);

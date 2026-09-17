@@ -26,14 +26,15 @@ export class ShopsController {
   ) {}
 
   @Get()
-  @RequirePermissions('shops.manage', 'sales.view.own_shop')
+  @RequirePermissions('shops.manage', 'sales.view.own_shop', 'inventory.view')
   list(@CurrentUser() user: AuthUser) {
     if (user.roles.includes('SUPER_ADMIN')) {
       return this.prisma.shop.findMany({ include: { settings: true }, orderBy: { name: 'asc' } });
     }
     return this.prisma.shop.findMany({
-      where: { id: { in: user.shopIds } },
+      where: { status: 'ACTIVE' },
       include: { settings: true },
+      orderBy: { name: 'asc' },
     });
   }
 

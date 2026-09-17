@@ -13,6 +13,7 @@ import { AppError } from '../../common/errors/app-error';
 import { ERROR_CODES } from '@erp/shared-types';
 import { AuditService } from '../audit/audit.service';
 import { ReceiptsService } from './receipts.service';
+import { buildDateRangeFilter } from '../../common/utils/date-filter';
 
 @Injectable()
 export class CheckoutService {
@@ -173,9 +174,33 @@ export class CheckoutService {
 
   async list(user: AuthUser, shopId?: string, search?: string, cashierId?: string, from?: string, to?: string) {
     const ids = scopedShopIds(user, shopId);
+    const dateFilter = buildDateRangeFilter(from, to);
+
+    const searchConditions: any[] = [];
+    if (search && search.trim()) {
+      const term = search.trim();
+      searchConditions.push(
+        { receiptNumber: { contains: term, mode: 'insensitive' } },
+        { customer: { name: { contains: term, mode: 'insensitive' } } },
+      );
+      if (term.includes('O') || term.includes('o')) {
+        const alt = term.replace(/o/gi, '0');
+        searchConditions.push({ receiptNumber: { contains: alt, mode: 'insensitive' } });
+      }
+      if (term.includes('0')) {
+        const alt = term.replace(/0/g, 'O');
+        searchConditions.push({ receiptNumber: { contains: alt, mode: 'insensitive' } });
+      }
+    }
+
     return this.prisma.sale.findMany({
-      where: { ...(ids.length ? { shopId: { in: ids } } : {}), ...(cashierId ? { cashierId } : {}), ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}), ...(search ? { OR: [{ receiptNumber: { contains: search, mode: 'insensitive' } }, { customer: { name: { contains: search, mode: 'insensitive' } } }] } : {}) },
-      include: { items: true, payments: { include: { method: true } } },
+      where: {
+        ...(ids.length ? { shopId: { in: ids } } : {}),
+        ...(cashierId ? { cashierId } : {}),
+        ...(dateFilter ? { createdAt: dateFilter } : {}),
+        ...(searchConditions.length ? { OR: searchConditions } : {}),
+      },
+      include: { shop: true, cashier: { select: { id: true, fullName: true, email: true } }, items: true, payments: { include: { method: true } } },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });

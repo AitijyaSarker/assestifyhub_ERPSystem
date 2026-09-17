@@ -5,6 +5,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../../common/types/auth-user';
 import { scopedShopIds } from '../../common/utils/shop-scope';
 import { d, money } from '../../common/utils/money';
+import { buildDateRangeFilter } from '../../common/utils/date-filter';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import ExcelJS from 'exceljs';
 
@@ -14,8 +15,8 @@ export class ReportsController {
 
   @Get('dashboard')
   @RequirePermissions('reports.view', 'sales.view.own_shop', 'inventory.view')
-  async dashboard(@CurrentUser() user: AuthUser) {
-    const shopIds = scopedShopIds(user);
+  async dashboard(@CurrentUser() user: AuthUser, @Query('shopId') shopId?: string) {
+    const shopIds = scopedShopIds(user, shopId);
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const startOfMonth = new Date(startOfDay.getFullYear(), startOfDay.getMonth(), 1);
@@ -83,11 +84,12 @@ export class ReportsController {
     @Query('shopId') shopId?: string,
   ) {
     const shopIds = scopedShopIds(user, shopId);
+    const dateFilter = buildDateRangeFilter(from, to);
     const sales = await this.prisma.sale.findMany({
       where: {
         status: 'COMPLETED',
         ...(shopIds.length ? { shopId: { in: shopIds } } : {}),
-        ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
+        ...(dateFilter ? { createdAt: dateFilter } : {}),
       },
       include: { items: true, payments: { include: { method: true } } },
     });
@@ -112,8 +114,9 @@ export class ReportsController {
   @RequirePermissions('reports.view')
   async salesDimensions(@CurrentUser() user: AuthUser, @Query('from') from?: string, @Query('to') to?: string, @Query('shopId') shopId?: string) {
     const ids = scopedShopIds(user, shopId);
+    const dateFilter = buildDateRangeFilter(from, to);
     const sales = await this.prisma.sale.findMany({
-      where: { status: 'COMPLETED', ...(ids.length ? { shopId: { in: ids } } : {}), ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}) },
+      where: { status: 'COMPLETED', ...(ids.length ? { shopId: { in: ids } } : {}), ...(dateFilter ? { createdAt: dateFilter } : {}) },
       include: { shop: true, cashier: true, items: { include: { variant: { include: { product: { include: { category: true } } } } } }, payments: { include: { method: true } } },
     });
     const group = (key: string, value: string, amount: string, target: Record<string, { count: number; total: string }>) => { const current = target[value] ?? { count: 0, total: '0.00' }; target[value] = { count: current.count + 1, total: money(d(current.total).plus(d(amount))).toFixed(2) }; };
@@ -147,11 +150,12 @@ export class ReportsController {
     @Query('shopId') shopId?: string,
   ) {
     const shopIds = scopedShopIds(user, shopId);
+    const dateFilter = buildDateRangeFilter(from, to);
     const sales = await this.prisma.sale.findMany({
       where: {
         status: 'COMPLETED',
         ...(shopIds.length ? { shopId: { in: shopIds } } : {}),
-        ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } } : {}),
+        ...(dateFilter ? { createdAt: dateFilter } : {}),
       },
       include: { shop: true, cashier: true, payments: { include: { method: true } } },
       orderBy: { createdAt: 'asc' },
@@ -253,9 +257,7 @@ export class ReportsController {
     @Query('shopId') shopId?: string,
   ) {
     const shopIds = scopedShopIds(user, shopId);
-    const dateWhere = from || to
-      ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined }
-      : undefined;
+    const dateWhere = buildDateRangeFilter(from, to);
     const [sales, expenses, refunds] = await Promise.all([
       this.prisma.sale.findMany({
         where: { status: 'COMPLETED', ...(shopIds.length ? { shopId: { in: shopIds } } : {}), ...(dateWhere ? { createdAt: dateWhere } : {}) },

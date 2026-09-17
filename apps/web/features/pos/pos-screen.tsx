@@ -1,13 +1,13 @@
 'use client';
 
-import { KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useCart } from '@/stores/cart';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { useCurrencyPreferences } from '@/app/providers';
+import { useCurrencyPreferences, useActiveShop } from '@/app/providers';
 
 type Method = { id: string; name: string };
-type Shop = { id: string; name: string };
+type Shop = { id: string; name: string; code: string };
 type Customer = { id: string; name: string; phone?: string };
 type InventoryRow = { productVariantId: string; quantityOnHand: string; quantityReserved: string };
 type Product = { name: string; sellingPrice: string; discount: string; taxRate: string; variants: { id: string; sku: string; variantName: string; priceOverride?: string | null; barcodes: { value: string }[] }[] };
@@ -15,9 +15,9 @@ type Product = { name: string; sellingPrice: string; discount: string; taxRate: 
 export function PosScreen() {
   const searchRef = useRef<HTMLInputElement>(null);
   const { formatCurrency } = useCurrencyPreferences();
+  const { shops, activeShopId, setActiveShopId } = useActiveShop();
   const [q, setQ] = useState('');
   const [methods, setMethods] = useState<Method[]>([]);
-  const [shops, setShops] = useState<Shop[]>([]);
   const [methodId, setMethodId] = useState('');
   const [tendered, setTendered] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -30,14 +30,29 @@ export function PosScreen() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptFormat, setReceiptFormat] = useState<'thermal' | 'a4'>('thermal');
   const [inventory, setInventory] = useState<Record<string, string>>({});
+  const [inventoryLoading, setInventoryLoading] = useState(false);
   const cart = useCart();
+
+  const loadInventory = useCallback((targetShopId: string) => {
+    if (!targetShopId) return;
+    setInventoryLoading(true);
+    api<InventoryRow[]>(`/inventory?shopId=${encodeURIComponent(targetShopId)}`)
+      .then((result) => {
+        setInventory(
+          Object.fromEntries(
+            (result.data ?? []).map((row) => [
+              row.productVariantId,
+              (Number(row.quantityOnHand) - Number(row.quantityReserved)).toFixed(3),
+            ])
+          )
+        );
+      })
+      .catch(() => undefined)
+      .finally(() => setInventoryLoading(false));
+  }, []);
 
   useEffect(() => {
     searchRef.current?.focus();
-    api<Shop[]>('/shops').then((r) => {
-      setShops(r.data);
-      if (r.data[0] && !cart.shopId) cart.setShopId(r.data[0].id);
-    });
     api<Method[]>('/payments/methods').then((r) => {
       setMethods(r.data);
       if (r.data[0]) setMethodId(r.data[0].id);
@@ -45,16 +60,18 @@ export function PosScreen() {
     api<Customer[]>('/customers').then((r) => setCustomers(r.data ?? [])).catch(() => undefined);
   }, []);
 
-  useEffect(() => () => {
-    if (receiptUrl) URL.revokeObjectURL(receiptUrl);
-  }, [receiptUrl]);
+  useEffect(() => {
+    const shopToUse = activeShopId || cart.shopId || shops[0]?.id;
+    if (shopToUse && cart.shopId !== shopToUse) {
+      cart.setShopId(shopToUse);
+    }
+  }, [activeShopId, shops]);
 
   useEffect(() => {
-    if (!cart.shopId) return;
-    api<InventoryRow[]>(`/inventory?shopId=${encodeURIComponent(cart.shopId)}`).then((result) => {
-      setInventory(Object.fromEntries((result.data ?? []).map((row) => [row.productVariantId, (Number(row.quantityOnHand) - Number(row.quantityReserved)).toFixed(3)])));
-    }).catch(() => undefined);
-  }, [cart.shopId]);
+    if (cart.shopId) {
+      loadInventory(cart.shopId);
+    }
+  }, [cart.shopId, loadInventory]);
 
   const totals = cart.lines.reduce((result, line) => {
     const quantity = Number(line.quantity);
@@ -171,30 +188,51 @@ export function PosScreen() {
       cart.clear();
       setTendered('');
       setCustomerId('');
+      if (cart.shopId) loadInventory(cart.shopId);
       searchRef.current?.focus();
     } catch (err) {
       setMessage((err as Error).message);
     }
   }
 
+  function onShopChange(newShopId: string) {
+    if (newShopId === cart.shopId) return;
+    if (cart.lines.length > 0) {
+      cart.clear();
+      setMessage('Cart cleared due to shop switch to maintain inventory accuracy.');
+    }
+    cart.setShopId(newShopId);
+    setActiveShopId(newShopId);
+    loadInventory(newShopId);
+  }
+
   return (
     <div className="grid grid-cols-[1fr_360px] gap-4">
       <div>
-        <div className="mb-3 flex gap-2">
+        <div className="mb-3 flex items-center gap-2">
           <select
-            className="rounded border px-2 py-2"
+            className="rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 bg-white shadow-sm"
             value={cart.shopId ?? ''}
-            onChange={(e) => cart.setShopId(e.target.value)}
+            onChange={(e) => onShopChange(e.target.value)}
           >
             {shops.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name}
+                🏬 {s.name} ({s.code})
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            disabled={inventoryLoading}
+            onClick={() => cart.shopId && loadInventory(cart.shopId)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+            title="Reload live stock balance for this shop"
+          >
+            {inventoryLoading ? '...' : '↻ Refresh Stock'}
+          </button>
           <input
             ref={searchRef}
-            className="flex-1 rounded border px-3 py-2 text-lg"
+            className="flex-1 rounded-lg border px-3 py-2 text-lg shadow-sm"
             placeholder="Scan barcode or search — Enter to add"
             value={q}
             onChange={(e) => setQ(e.target.value)}
