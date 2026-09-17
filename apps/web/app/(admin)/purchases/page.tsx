@@ -101,13 +101,15 @@ export default function PurchasesPage() {
 
       await api(`/purchases/${created.data.id}/receive`, {
         method: 'POST',
-        body: JSON.stringify({ items: [{ productVariantId: activeVariantId, quantity: formattedQty, unitPrice: formattedPrice }] }),
+        body: JSON.stringify({ items: [{ productVariantId: activeVariantId, quantity: formattedQty }] }),
       });
 
       setMessage(`Stock of ${numQty} units received successfully into inventory! Check the Inventory tab to view stock.`);
+      setError(null);
       setRef('');
       await loadPurchases();
     } catch (err) {
+      setMessage(null);
       setError((err as Error).message || 'Failed to create and receive purchase.');
     } finally {
       setSaving(false);

@@ -38,6 +38,10 @@ export class ReceiveItemDto {
 
   @Matches(/^\d+(\.\d{1,3})?$/)
   quantity!: string;
+
+  @IsOptional()
+  @Matches(/^\d+(\.\d{1,2})?$/)
+  unitPrice?: string;
 }
 
 export class ReceivePurchaseDto {
