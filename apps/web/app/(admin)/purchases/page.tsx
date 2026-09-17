@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { api } from '@/lib/api';
+import { useActiveShop } from '@/app/providers';
 
 type ShopOption = { id: string; name: string };
 type SupplierOption = { id: string; name: string };
@@ -20,6 +21,7 @@ type PurchaseRow = {
 };
 
 export default function PurchasesPage() {
+  const { isSuperAdmin } = useActiveShop();
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [products, setProducts] = useState<ProductWithVariants[]>([]);
@@ -157,6 +159,15 @@ export default function PurchasesPage() {
   return (
     <div>
       <PageHeader title="Purchasing" subtitle="Create Purchase Order and receive stock directly into inventory" />
+
+      {!isSuperAdmin && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-800">
+          <h3 className="mb-2 text-lg font-bold">Access Restricted</h3>
+          <p>Only Super Admin can create purchase orders and receive stock. Contact your manager to add stock.</p>
+        </div>
+      )}
+
+      {isSuperAdmin && (<>
 
       {message && (
         <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -306,6 +317,7 @@ export default function PurchasesPage() {
           </ul>
         )}
       </div>
+      </>)}
     </div>
   );
 }

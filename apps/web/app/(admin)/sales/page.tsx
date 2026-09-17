@@ -17,7 +17,7 @@ type SaleRow = {
 };
 
 export default function SalesPage() {
-  const { shops, activeShopId, isSuperAdmin } = useActiveShop();
+  const { shops, accessibleShops, activeShopId, isSuperAdmin } = useActiveShop();
   const [rows, setRows] = useState<SaleRow[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string>('');
   const [search, setSearch] = useState('');
@@ -67,7 +67,7 @@ export default function SalesPage() {
             onChange={(e) => setSelectedShopId(e.target.value)}
           >
             {isSuperAdmin && <option value="">🌐 All Shops (Global Network)</option>}
-            {shops.map((s) => (
+            {(isSuperAdmin ? shops : accessibleShops).map((s) => (
               <option key={s.id} value={s.id}>
                 🏬 {s.name} ({s.code})
               </option>

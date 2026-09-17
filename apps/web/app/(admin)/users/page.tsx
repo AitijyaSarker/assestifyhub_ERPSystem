@@ -3,8 +3,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { api } from '@/lib/api';
+import { useActiveShop } from '@/app/providers';
 
 export default function UsersPage() {
+  const { isSuperAdmin } = useActiveShop();
   const [rows, setRows] = useState<{ id: string; email: string; fullName: string }[]>([]);
   const [shops, setShops] = useState<{ id: string; name: string }[]>([]);
   const [email, setEmail] = useState('');
@@ -27,9 +29,17 @@ export default function UsersPage() {
     setRows((await api<typeof rows>('/users')).data);
   }
   return (
-    <div>
-      <PageHeader title="Users" />
-      <form onSubmit={create} className="mb-4 grid grid-cols-4 gap-2">
+    <div className="space-y-6">
+      <PageHeader title="Users" subtitle="Manage system access and assign staff to shops." />
+      {!isSuperAdmin && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-800">
+          <h3 className="mb-2 text-lg font-bold">Access Restricted</h3>
+          <p>Only Super Admin can manage system users and assign shop permissions.</p>
+        </div>
+      )}
+      {isSuperAdmin && (
+        <>
+          <form onSubmit={create} className="grid grid-cols-4 gap-2">
         <input className="rounded border px-2 py-1" placeholder="Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className="rounded border px-2 py-1" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -49,6 +59,8 @@ export default function UsersPage() {
           </li>
         ))}
       </ul>
+        </>
+      )}
     </div>
   );
 }

@@ -30,7 +30,7 @@ type MovementRow = {
 };
 
 export default function InventoryPage() {
-  const { shops, activeShopId, isSuperAdmin } = useActiveShop();
+  const { shops, accessibleShops, activeShopId, isSuperAdmin } = useActiveShop();
   const [selectedShopId, setSelectedShopId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'balances' | 'movements'>('balances');
   const [rows, setRows] = useState<InventoryRow[]>([]);
@@ -162,7 +162,7 @@ export default function InventoryPage() {
               onChange={(e) => setSelectedShopId(e.target.value)}
             >
               {isSuperAdmin && <option value="">🌐 All Shops (Network)</option>}
-              {shops.map((s) => (
+              {(isSuperAdmin ? shops : accessibleShops).map((s) => (
                 <option key={s.id} value={s.id}>
                   🏬 {s.name} ({s.code})
                 </option>

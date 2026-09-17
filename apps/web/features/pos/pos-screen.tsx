@@ -15,7 +15,7 @@ type Product = { name: string; sellingPrice: string; discount: string; taxRate: 
 export function PosScreen() {
   const searchRef = useRef<HTMLInputElement>(null);
   const { formatCurrency } = useCurrencyPreferences();
-  const { shops, activeShopId, setActiveShopId } = useActiveShop();
+  const { shops, accessibleShops, activeShopId, activeShop, setActiveShopId, isSuperAdmin } = useActiveShop();
   const [q, setQ] = useState('');
   const [methods, setMethods] = useState<Method[]>([]);
   const [methodId, setMethodId] = useState('');
@@ -210,17 +210,23 @@ export function PosScreen() {
     <div className="grid grid-cols-[1fr_360px] gap-4">
       <div>
         <div className="mb-3 flex items-center gap-2">
-          <select
-            className="rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 bg-white shadow-sm"
-            value={cart.shopId ?? ''}
-            onChange={(e) => onShopChange(e.target.value)}
-          >
-            {shops.map((s) => (
-              <option key={s.id} value={s.id}>
-                🏬 {s.name} ({s.code})
-              </option>
-            ))}
-          </select>
+          {isSuperAdmin || accessibleShops.length > 1 ? (
+            <select
+              className="rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 bg-white shadow-sm"
+              value={cart.shopId ?? ''}
+              onChange={(e) => onShopChange(e.target.value)}
+            >
+              {(isSuperAdmin ? shops : accessibleShops).map((s) => (
+                <option key={s.id} value={s.id}>
+                  🏬 {s.name} ({s.code})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
+              🏬 {accessibleShops[0]?.name ?? activeShop?.name ?? 'Assigned Shop'} ({accessibleShops[0]?.code ?? activeShop?.code ?? ''})
+            </div>
+          )}
           <button
             type="button"
             disabled={inventoryLoading}

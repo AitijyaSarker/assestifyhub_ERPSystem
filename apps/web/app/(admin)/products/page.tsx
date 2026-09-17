@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { api } from '@/lib/api';
-import { useCurrencyPreferences } from '@/app/providers';
+import { useCurrencyPreferences, useActiveShop } from '@/app/providers';
 
 type Product = {
   id: string;
@@ -18,6 +18,7 @@ type VariantDraft = { sku: string; variantName: string; barcode: string; attribu
 
 export default function ProductsPage() {
   const { formatCurrency } = useCurrencyPreferences();
+  const { isSuperAdmin } = useActiveShop();
   const [rows, setRows] = useState<Product[]>([]);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -142,23 +143,35 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <PageHeader title="Products" subtitle="Catalog, variants, barcodes" />
-      <div className="mb-4 grid gap-2 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2"><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New category" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} /><button type="button" className="rounded border px-3" onClick={() => void createCategory()}>Add category</button></div><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New brand" value={brandName} onChange={(e) => setBrandName(e.target.value)} /><button type="button" className="rounded border px-3" onClick={() => void createBrand()}>Add brand</button></div></div>
+      <PageHeader 
+        title="Products" 
+        subtitle={isSuperAdmin ? "Catalog, variants, barcodes" : "Product directory and pricing."} 
+      />
+      {!isSuperAdmin && (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          <strong>Access Restricted:</strong> Catalog and pricing are centrally managed by Super Admin. You are viewing the read-only directory.
+        </div>
+      )}
+      {isSuperAdmin && (
+        <div className="mb-4 grid gap-2 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2"><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New category" value={categoryName} onChange={(e) => setCategoryName(e.target.value)} /><button type="button" className="rounded border px-3" onClick={() => void createCategory()}>Add category</button></div><div className="flex gap-2"><input className="flex-1 rounded border px-2 py-1" placeholder="New brand" value={brandName} onChange={(e) => setBrandName(e.target.value)} /><button type="button" className="rounded border px-3" onClick={() => void createBrand()}>Add brand</button></div></div>
+      )}
       {message ? <p className="mb-4 rounded-xl border border-[var(--line)] bg-white px-4 py-3 text-sm text-[var(--navy)]">{message}</p> : null}
-      <form onSubmit={onCreate} className="mb-6 grid grid-cols-6 gap-2 rounded-xl bg-white p-4 shadow-sm">
-        <input className="rounded border px-2 py-1" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="rounded border px-2 py-1" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} />
-        <select className="rounded border px-2 py-1" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}><option value="">Category</option>{categories.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
-        <select className="rounded border px-2 py-1" value={brandId} onChange={(e) => setBrandId(e.target.value)}><option value="">Brand</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
-        <input required min="0.01" step="0.01" type="number" className="rounded border px-2 py-1" placeholder="Cost" value={cost} onChange={(e) => setCost(e.target.value)} />
-        <input required min="0.01" step="0.01" type="number" className="rounded border px-2 py-1" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} />
-        <input className="rounded border px-2 py-1" placeholder="Image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-        <input className="rounded border px-2 py-1" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
-        <input className="rounded border px-2 py-1" placeholder="Attribute name e.g. Colour" value={attributeName} onChange={(e) => setAttributeName(e.target.value)} />
-        <input className="rounded border px-2 py-1" placeholder="Values comma-separated" value={attributeValues} onChange={(e) => setAttributeValues(e.target.value)} />
-        <div className="col-span-6 space-y-2 rounded border p-2"><div className="flex items-center justify-between text-sm font-semibold"><span>Variants</span><button type="button" className="rounded border px-2 py-1" onClick={() => setVariants((current) => [...current, { sku: '', variantName: '', barcode: '', attributeValues: '' }])}>Add variant</button></div>{variants.map((variant, index) => <div key={index} className="grid gap-2 sm:grid-cols-4"><input required className="rounded border px-2 py-1" placeholder="SKU" value={variant.sku} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sku: e.target.value } : item))} /><input required className="rounded border px-2 py-1" placeholder="Variant e.g. Medium / Black" value={variant.variantName} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, variantName: e.target.value } : item))} /><input className="rounded border px-2 py-1" placeholder="Barcode" value={variant.barcode} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, barcode: e.target.value } : item))} /><input className="rounded border px-2 py-1" placeholder="Attribute values" value={variant.attributeValues} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, attributeValues: e.target.value } : item))} /></div>)}</div>
-        <button disabled={saving} className="col-span-6 rounded bg-accent py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : 'Create product'}</button>
-      </form>
+      {isSuperAdmin && (
+        <form onSubmit={onCreate} className="mb-6 grid grid-cols-6 gap-2 rounded-xl bg-white p-4 shadow-sm">
+          <input className="rounded border px-2 py-1" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="rounded border px-2 py-1" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} />
+          <select className="rounded border px-2 py-1" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}><option value="">Category</option>{categories.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
+          <select className="rounded border px-2 py-1" value={brandId} onChange={(e) => setBrandId(e.target.value)}><option value="">Brand</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
+          <input required min="0.01" step="0.01" type="number" className="rounded border px-2 py-1" placeholder="Cost" value={cost} onChange={(e) => setCost(e.target.value)} />
+          <input required min="0.01" step="0.01" type="number" className="rounded border px-2 py-1" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <input className="rounded border px-2 py-1" placeholder="Image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+          <input className="rounded border px-2 py-1" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
+          <input className="rounded border px-2 py-1" placeholder="Attribute name e.g. Colour" value={attributeName} onChange={(e) => setAttributeName(e.target.value)} />
+          <input className="rounded border px-2 py-1" placeholder="Values comma-separated" value={attributeValues} onChange={(e) => setAttributeValues(e.target.value)} />
+          <div className="col-span-6 space-y-2 rounded border p-2"><div className="flex items-center justify-between text-sm font-semibold"><span>Variants</span><button type="button" className="rounded border px-2 py-1" onClick={() => setVariants((current) => [...current, { sku: '', variantName: '', barcode: '', attributeValues: '' }])}>Add variant</button></div>{variants.map((variant, index) => <div key={index} className="grid gap-2 sm:grid-cols-4"><input required className="rounded border px-2 py-1" placeholder="SKU" value={variant.sku} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sku: e.target.value } : item))} /><input required className="rounded border px-2 py-1" placeholder="Variant e.g. Medium / Black" value={variant.variantName} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, variantName: e.target.value } : item))} /><input className="rounded border px-2 py-1" placeholder="Barcode" value={variant.barcode} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, barcode: e.target.value } : item))} /><input className="rounded border px-2 py-1" placeholder="Attribute values" value={variant.attributeValues} onChange={(e) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, attributeValues: e.target.value } : item))} /></div>)}</div>
+          <button disabled={saving} className="col-span-6 rounded bg-accent py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : 'Create product'}</button>
+        </form>
+      )}
       <table className="w-full overflow-hidden rounded-xl bg-white text-left text-sm shadow-sm">
         <thead className="bg-slate-100">
           <tr>
@@ -178,12 +191,14 @@ export default function ProductsPage() {
               <td>{formatCurrency(p.sellingPrice)}</td>
               <td className="p-3">
                 <div className="flex items-center gap-3">
-                  <button type="button" className="text-accent" onClick={() => void labels(p.id)}>
+                  <button type="button" className="text-accent hover:underline" onClick={() => void labels(p.id)}>
                     Labels PDF
                   </button>
-                  <button type="button" className="text-red-600" onClick={() => void removeProduct(p)}>
-                    Delete
-                  </button>
+                  {isSuperAdmin && (
+                    <button type="button" className="text-red-600 hover:underline" onClick={() => void removeProduct(p)}>
+                      Delete
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>
