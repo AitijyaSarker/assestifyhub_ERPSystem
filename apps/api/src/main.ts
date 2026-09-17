@@ -15,29 +15,23 @@ async function bootstrap() {
   mkdirSync('./uploads/returns', { recursive: true });
   mkdirSync('./uploads/products', { recursive: true });
   const app = await NestFactory.create(AppModule, { rawBody: false });
-  const allowedOrigins = (process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000')
-    .split(',')
-    .map((o) => o.trim().replace(/\/$/, ''))
-    .filter(Boolean);
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, PATCH, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-csrf-token, X-Requested-With, Accept');
+    }
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+    next();
+  });
 
   app.enableCors({
-    origin: (requestOrigin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!requestOrigin) return callback(null, true);
-      const clean = requestOrigin.replace(/\/$/, '');
-      if (
-        allowedOrigins.includes(clean) ||
-        allowedOrigins.includes('*') ||
-        clean.endsWith('.vercel.app') ||
-        clean.includes('localhost') ||
-        clean.includes('127.0.0.1')
-      ) {
-        return callback(null, true);
-      }
-      return callback(null, true);
-    },
+    origin: true,
     credentials: true,
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'X-Requested-With', 'Accept'],
   });
 
   app.setGlobalPrefix(process.env.API_PREFIX ?? 'api/v1');
